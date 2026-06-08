@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics Products{% endblock %}
+
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .chart-card canvas {
+        width: 100% !important;
+        height: 340px !important;
+        margin-top: 12px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="section-stack">
+    <div class="card chart-card">
+        <h3>Products Sold</h3>
+        <div class="muted" id="products_state">Loading...</div>
+        <canvas id="products_chart" style="display: none;"></canvas>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let productsChart = null;
+
+function setChartState(text, showCanvas) {
+    const state = document.getElementById("products_state");
+    const canvas = document.getElementById("products_chart");
+    state.textContent = text;
+    state.style.display = showCanvas ? "none" : "block";
+    canvas.style.display = showCanvas ? "block" : "none";
+}
+
+async function loadProductsChart() {
+    try {
+        const response = await fetch("/api/analytics/top-products/", { credentials: "same-origin" });
+        const payload = await response.json();
+        if (!response.ok) {
+            throw new Error(payload?.message || "Request failed.");
+        }
+        const rows = payload?.data || [];
+        if (!rows.length) {
+            setChartState("No product sales data available.", false);
+            return;
+        }
+
+        const sortedRows = [...rows].sort((a, b) => Number(b.quantity_sold || 0) - Number(a.quantity_sold || 0));
+        const topRows = sortedRows.slice(0, 12);
+        setChartState("", true);
+
+        if (productsChart) {
+            productsChart.destroy();
+        }
+        productsChart = new Chart(document.getElementById("products_chart"), {
+            type: "bar",
+            data: {
+                labels: topRows.map((row) => row.product_name),
+                datasets: [{
+                    label: "Quantity Sold",
+                    data: topRows.map((row) => Number(row.quantity_sold || 0)),
+                    backgroundColor: "#2563eb"
+                }]
+            }
+        });
+    } catch (error) {
+        setChartState("Unable to load product sales.", false);
+    }
+}
+
+loadProductsChart();
+</script>
+{% endblock %}

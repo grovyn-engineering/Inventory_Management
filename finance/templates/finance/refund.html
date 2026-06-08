@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Refunds{% endblock %}
+
+{% block content %}
+<section class="two-col">
+    <div class="card">
+        <h3>Issue Refund</h3>
+        <form class="form" onsubmit="event.preventDefault(); refundOrder();">
+            {% csrf_token %}
+            <input type="number" id="refund_order_id" placeholder="Order ID" required>
+            <button type="submit">Process Refund</button>
+        </form>
+        <div class="muted" id="refund_result" style="margin-top: 8px;"></div>
+    </div>
+    <div class="card">
+        <h3>Guidance</h3>
+        <div class="notice">
+            Refunds require a valid order id. The backend will validate status and amount
+            before issuing a Razorpay refund.
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) {
+        return parts.pop().split(";").shift();
+    }
+    return "";
+}
+
+const csrfToken = getCookie("csrftoken");
+
+async function refundOrder() {
+    const result = document.getElementById("refund_result");
+    result.textContent = "";
+
+    const res = await fetch("/api/finance/refund/", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfToken
+        },
+        body: JSON.stringify({
+            order_id: document.getElementById("refund_order_id").value
+        })
+    });
+
+    const data = await res.json();
+    result.textContent = data.message || data.error || "Request completed.";
+}
+</script>
+{% endblock %}

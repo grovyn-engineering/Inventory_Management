@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}Add Stock{% endblock %}
+
+{% block content %}
+<section class="two-col">
+    <div class="card">
+        <h3>Add Stock</h3>
+        <form class="form" onsubmit="event.preventDefault(); addStock();">
+            {% csrf_token %}
+            <select id="stock_product" required>
+                <option value="">Loading products...</option>
+            </select>
+            <input id="stock_quantity" type="number" min="1" placeholder="Quantity" required>
+            <input id="stock_expiry" type="date">
+            <div class="muted">Dates are optional</div>
+            <select id="stock_location" required>
+                <option value="">{% if is_admin %}Select location{% else %}Select your assigned location{% endif %}</option>
+                {% for location in locations %}
+                    <option value="{{ location.id }}"{% if selected_location_id == location.id|stringformat:"s" %} selected{% endif %}>{{ location.name }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit">Add Stock</button>
+        </form>
+        <div class="muted" id="stock_result" style="margin-top: 8px;"></div>
+    </div>
+    <div class="card">
+        <h3>Stock Entries</h3>
+        {% if stocks %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Location</th>
+                        <th>Qty</th>
+                        <th>Reserved</th>
+                        <th>Available</th>
+                        <th>Expiry</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stock in stocks %}
+                        <tr>
+                            <td>{{ stock.product.name }}</td>
+                            <td>{{ stock.location.name }}</td>
+                            <td>{{ stock.quantity }}</td>
+                            <td>{{ stock.reserved_quantity }}</td>
+                            <td>{{ stock.available_quantity }}</td>
+                            <td>{{ stock.expiry_date }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="muted">No stock entries available.</div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const csrfToken = window.CrudActions.getCookie("csrftoken");
+
+async function loadProducts() {
+    const productSelect = document.getElementById("stock_product");
+    const result = document.getElementById("stock_result");
+    const locationId = document.getElementById("stock_location").value;
+
+    productSelect.innerHTML = "<option value=\"\">Loading products...</option>";
+    if (!locationId) {
+        productSelect.innerHTML = "<option value=\"\">Select location first</option>";
+        return;
+    }
+
+    try {
+        const url = `/api/inventory/products/?location_id=${encodeURIComponent(locationId)}`;
+        const res = await fetch(url, {
+            method: "GET",
+            credentials: "same-origin",
+            headers: {
+                "X-CSRFToken": csrfToken
+            }
+        });
+        const data = await res.json();
+        console.log("FULL RESPONSE:", data);
+
+        if (!res.ok) {
+            productSelect.innerHTML = "<option value=\"\">No products available</option>";
+            result.textContent = window.CrudActions.extractErrorMessage(data);
+            return;
+        }
+
+        const products = Array.isArray(data.data) ? data.data : [];
+        if (!products.length) {
+            productSelect.innerHTML = "<option value=\"\">No products available</option>";
+            return;
+        }
+
+        productSelect.innerHTML = "<option value=\"\">Select product</option>";
+        products.forEach((product) => {
+            const option = document.createElement("option");
+            option.value = product.id;
+            option.textContent = product.name;
+            productSelect.appendChild(option);
+        });
+    } catch (error) {
+        console.error(error);
+        productSelect.innerHTML = "<option value=\"\">Error loading products</option>";
+    }
+}
+
+async function addStock() {
+    const result = document.getElementById("stock_result");
+    result.textContent = "";
+
+    const payload = {
+        product_id: document.getElementById("stock_product").value,
+        quantity: document.getElementById("stock_quantity").value
+    };
+    const expiryDate = document.getElementById("stock_expiry").value;
+    if (expiryDate) {
+        payload.expiry_date = expiryDate;
+    }
+
+    const locationId = document.getElementById("stock_location").value;
+    if (!locationId) {
+        const message = "Location is required.";
+        result.textContent = message;
+        window.CrudActions.showToast(message, "error");
+        return;
+    }
+    payload.location_id = locationId;
+    try {
+        const res = await fetch("/api/inventory/add-stock/", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrfToken
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        const isCreateSuccess = res.status === 200 || res.status === 201;
+        if (isCreateSuccess) {
+            const message = "Stock added successfully";
+            result.textContent = message;
+            window.CrudActions.showToast(message, "success");
+            setTimeout(() => window.location.reload(), 900);
+            return;
+        }
+        const errorMessage = window.CrudActions.extractErrorMessage(data);
+        result.textContent = errorMessage;
+        window.CrudActions.showToast(errorMessage, "error");
+    } catch (_error) {
+        const message = "Request failed.";
+        result.textContent = message;
+        window.CrudActions.showToast(message, "error");
+    }
+}
+
+document.getElementById("stock_location").addEventListener("change", loadProducts);
+window.addEventListener("load", loadProducts);
+</script>
+{% endblock %}

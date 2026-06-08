@@ -1,0 +1,39 @@
+<aside class="sidebar">
+    <div class="brand">Inventory Automation</div>
+
+    {% if request.user.is_authenticated %}
+        <div class="nav-section">
+            <div class="nav-title">Inventory</div>
+            {% if request.user.is_superuser or request.user.normalized_role == "admin" %}
+                <a class="nav-link" href="{% url 'dashboard_admin' %}">Dashboard</a>
+            {% elif request.user.normalized_role == "manager" %}
+                <a class="nav-link" href="{% url 'dashboard_manager' %}">Dashboard</a>
+            {% elif request.user.normalized_role == "worker" %}
+                <a class="nav-link" href="{% url 'dashboard_worker' %}">Dashboard</a>
+            {% else %}
+                <a class="nav-link" href="{% url 'root' %}">Dashboard</a>
+            {% endif %}
+            <a class="nav-link" href="{% url 'inventory_pages:products' %}">Product</a>
+            <a class="nav-link" href="{% url 'inventory_pages:variants' %}">Product Variant</a>
+            <a class="nav-link" href="{% url 'inventory_pages:categories' %}">Category</a>
+            <a class="nav-link" href="{% url 'inventory_pages:stock' %}">Add Stock</a>
+            <a class="nav-link" href="{% url 'inventory_pages:stock_entries' %}">Stock Entry</a>
+            <a class="nav-link" href="{% url 'inventory_pages:locations' %}">Location</a>
+        </div>
+
+        {% if request.user.is_superuser or request.user.normalized_role == "admin" or request.user.normalized_role == "manager" or request.user.normalized_role == "worker" %}
+            <div class="nav-section">
+                <div class="nav-title">Operations</div>
+                {% if request.user.is_superuser or request.user.normalized_role == "admin" or request.user.normalized_role == "manager" %}
+                    <a class="nav-link" href="{% url 'orders_pages:dashboard' %}">Order Stats</a>
+                    <a class="nav-link" href="{% url 'finance_pages:revenue' %}">Revenue</a>
+                    <a class="nav-link" href="{% url 'finance_pages:refund' %}">Refunds</a>
+                    <a class="nav-link" href="{% url 'finance_pages:dashboard' %}">Transactions</a>
+                    <a class="nav-link" href="{% url 'finance_pages:dashboard' %}">Bills</a>
+                    <a class="nav-link" href="{% url 'analytics_console' %}">Analytics</a>
+                {% endif %}
+                <a class="nav-link" href="{% url 'notifications_pages:dashboard' %}">Notifications</a>
+            </div>
+        {% endif %}
+    {% endif %}
+</aside>

@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Inventory Automation{% endblock %}</title>
+    <style>
+        @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap");
+
+        :root {
+            --bg: #f5f7fb;
+            --surface: #ffffff;
+            --surface-muted: #f0f2f7;
+            --text: #0f172a;
+            --muted: #64748b;
+            --primary: #2563eb;
+            --primary-strong: #1d4ed8;
+            --accent: #0f766e;
+            --border: #e2e8f0;
+            --warning: #f59e0b;
+            --danger: #dc2626;
+            --shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(1200px 600px at 12% -20%, #dbeafe 0%, transparent 55%),
+                radial-gradient(900px 500px at 110% 10%, #ccfbf1 0%, transparent 45%),
+                var(--bg);
+        }
+
+        a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 260px minmax(0, 1fr);
+            min-height: 100vh;
+        }
+
+        .auth-card {
+            width: 100%;
+            max-width: 420px;
+            background: #ffffff;
+            border-radius: 18px;
+            border: 1px solid var(--border);
+            box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
+            padding: 30px;
+        }
+
+        .auth-view .sidebar,
+        .auth-view .topbar {
+            display: none;
+        }
+
+        .auth-view .layout {
+            grid-template-columns: 1fr;
+        }
+
+        .auth-view .main {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .sidebar {
+            background: rgba(255, 255, 255, 0.96);
+            border-right: 1px solid var(--border);
+            padding: 28px 20px;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            font-size: 18px;
+            margin-bottom: 32px;
+        }
+
+        .nav-section {
+            margin-bottom: 24px;
+        }
+
+        .nav-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            color: var(--text);
+            font-weight: 500;
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+
+        .nav-link:hover,
+        .nav-link.active {
+            background: var(--surface-muted);
+            color: var(--primary);
+        }
+
+        .main {
+            padding: 28px 36px 40px;
+        }
+
+        .topbar {
+            display: grid;
+            gap: 18px;
+            margin-bottom: 28px;
+        }
+
+        .page-pre-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 12px;
+        }
+
+        .topbar-main {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .topbar-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .role-navbar {
+            align-items: flex-start;
+            gap: 20px;
+        }
+
+        .role-nav {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+        }
+
+        .role-nav .nav-link {
+            background: var(--surface);
+            border: 1px solid var(--border);
+        }
+
+        .section-nav {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            padding: 14px 16px;
+            background: rgba(255, 255, 255, 0.82);
+            border: 1px solid rgba(226, 232, 240, 0.95);
+            border-radius: 18px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(14px);
+        }
+
+        .section-nav-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--muted);
+            margin-right: 4px;
+        }
+
+        .section-nav .nav-link {
+            background: transparent;
+            border: 1px solid transparent;
+            padding: 9px 14px;
+        }
+
+        .section-nav .nav-link:hover,
+        .section-nav .nav-link.active {
+            background: var(--surface);
+            border-color: var(--border);
+            color: var(--primary);
+        }
+
+        .eyebrow {
+            color: var(--muted);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+        }
+
+        h1 {
+            margin: 6px 0 0;
+            font-size: 28px;
+        }
+
+        .chip {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 6px 14px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 18px;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 18px;
+            box-shadow: var(--shadow);
+        }
+
+        .card h3 {
+            margin: 0 0 8px;
+            font-size: 16px;
+        }
+
+        .section-stack {
+            display: grid;
+            gap: 24px;
+            margin-top: 24px;
+        }
+
+        .section-heading {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .section-heading h2,
+        .section-heading h3 {
+            margin: 4px 0 0;
+        }
+
+        .menu-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 18px;
+        }
+
+        .menu-card {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .menu-card::before {
+            content: "";
+            position: absolute;
+            inset: 0 0 auto;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+        }
+
+        .menu-card .badge {
+            margin-bottom: 12px;
+        }
+
+        .menu-list {
+            list-style: none;
+            padding: 0;
+            margin: 12px 0 0;
+            display: grid;
+            gap: 10px;
+        }
+
+        .menu-list li {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            font-size: 14px;
+        }
+
+        .menu-list strong {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .menu-meta {
+            color: var(--muted);
+            font-size: 12px;
+            text-align: right;
+        }
+
+        .metric {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .muted {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+            margin-top: 8px;
+        }
+
+        .table th,
+        .table td {
+            text-align: left;
+            padding: 10px 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .table th {
+            color: var(--muted);
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+            background: var(--surface-muted);
+            color: var(--text);
+        }
+
+        .badge.warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .badge.danger {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .form {
+            display: grid;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        input, select, button, textarea {
+            font-family: inherit;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            font-size: 14px;
+        }
+
+        button {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        button:hover {
+            background: var(--primary-strong);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        .btn-ghost:hover {
+            background: var(--surface-muted);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+        }
+
+        .btn-danger:hover {
+            background: #b91c1c;
+        }
+
+        .two-col {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 18px;
+        }
+
+        .notice {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            color: #1e3a8a;
+            padding: 12px 14px;
+            border-radius: 12px;
+            font-size: 13px;
+        }
+
+        .toast-container {
+            position: fixed;
+            top: 18px;
+            right: 18px;
+            display: grid;
+            gap: 10px;
+            z-index: 2500;
+            pointer-events: none;
+        }
+
+        .toast {
+            background: #0f172a;
+            color: #ffffff;
+            border-radius: 10px;
+            padding: 10px 14px;
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.24);
+            font-size: 13px;
+            max-width: min(420px, 90vw);
+            opacity: 0;
+            transform: translateY(-8px);
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .toast.toast-success {
+            background: #166534;
+        }
+
+        .toast.toast-error {
+            background: #b91c1c;
+        }
+
+        .product-grid {
+            --grid-gap: 20px;
+            --card-height: 280px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: var(--grid-gap);
+            margin-top: 20px;
+            max-height: 880px;
+            max-height: calc((var(--card-height) * 3) + (var(--grid-gap) * 2));
+            overflow-y: auto;
+            padding-right: 4px;
+            align-content: start;
+            grid-auto-rows: var(--card-height);
+            scrollbar-gutter: stable;
+        }
+
+        .product-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            box-shadow: var(--shadow);
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            gap: 10px;
+            height: 100%;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .product-card:hover {
+            transform: translateY(-2px) scale(1.01);
+            box-shadow: 0 18px 36px rgba(15, 23, 42, 0.16);
+        }
+
+        .product-image {
+            width: 100%;
+            height: 110px;
+            border-radius: 10px;
+            object-fit: cover;
+            background: linear-gradient(135deg, #e2e8f0, #f8fafc);
+            display: block;
+        }
+
+        .product-image.placeholder {
+            display: grid;
+            place-items: center;
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .product-card h3 {
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .price {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .order-form {
+            display: grid;
+            gap: 10px;
+            margin-top: auto;
+        }
+
+        .order-form .qty-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .order-form input[type="number"] {
+            width: 100%;
+            max-width: 120px;
+        }
+
+        .order-form button {
+            width: 100%;
+        }
+
+        @media (max-width: 1100px) {
+            .product-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .product-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                position: static;
+                height: auto;
+            }
+
+            .topbar-main {
+                flex-direction: column;
+            }
+
+            .topbar-actions {
+                justify-content: flex-start;
+            }
+        }
+    </style>
+    {% block head_extra %}{% endblock %}
+</head>
+<body class="{% if not request.user.is_authenticated %}auth-view{% endif %}">
+<div class="layout">
+    {% include 'partials/sidebar.html' %}
+    <main class="main">
+        {% block pre_topbar %}{% endblock %}
+        {% if not hide_topbar %}
+            {% include 'partials/navbar.html' %}
+        {% endif %}
+        {% block content %}{% endblock %}
+    </main>
+</div>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+const currentPath = window.location.pathname;
+document.querySelectorAll(".nav-link").forEach((link) => {
+    if (currentPath === link.getAttribute("href")) {
+        link.classList.add("active");
+    }
+});
+
+window.CrudActions = (() => {
+    let toastContainer = null;
+
+    const getCookie = (name) => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) {
+            return parts.pop().split(";").shift();
+        }
+        return "";
+    };
+
+    const extractErrorMessage = (payload) => {
+        if (!payload) {
+            return "Request failed.";
+        }
+        if (Array.isArray(payload.errors) && payload.errors.length) {
+            return payload.errors.map((error) => `${error.field}: ${error.message}`).join(" | ");
+        }
+        const firstField = Object.keys(payload)[0];
+        if (firstField && Array.isArray(payload[firstField])) {
+            return `${firstField}: ${payload[firstField].join(", ")}`;
+        }
+        return payload.message || payload.error || "Request failed.";
+    };
+
+    const getToastContainer = () => {
+        if (toastContainer && document.body.contains(toastContainer)) {
+            return toastContainer;
+        }
+        toastContainer = document.createElement("div");
+        toastContainer.className = "toast-container";
+        document.body.appendChild(toastContainer);
+        return toastContainer;
+    };
+
+    const showToast = (message, type = "success", duration = 3000) => {
+        if (!message) {
+            return;
+        }
+        const container = getToastContainer();
+        const toast = document.createElement("div");
+        toast.className = `toast toast-${type === "error" ? "error" : "success"}`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        requestAnimationFrame(() => {
+            toast.classList.add("show");
+        });
+        window.setTimeout(() => {
+            toast.classList.remove("show");
+            window.setTimeout(() => {
+                toast.remove();
+            }, 220);
+        }, duration);
+    };
+
+    const request = async (url, options = {}) => {
+        const method = (options.method || "GET").toUpperCase();
+        const headers = { ...(options.headers || {}) };
+        if (method !== "GET" && method !== "HEAD" && !headers["X-CSRFToken"]) {
+            headers["X-CSRFToken"] = getCookie("csrftoken");
+        }
+        const response = await fetch(url, {
+            credentials: "same-origin",
+            ...options,
+            method,
+            headers,
+        });
+        let payload = null;
+        try {
+            payload = await response.json();
+        } catch (_error) {
+            payload = null;
+        }
+        if (!response.ok || (payload && payload.success === false)) {
+            throw new Error(extractErrorMessage(payload));
+        }
+        return payload;
+    };
+
+    const handleDelete = async ({ id, url, confirmMessage, onSuccess, onError }) => {
+        if (confirmMessage && !window.confirm(confirmMessage)) {
+            return false;
+        }
+        try {
+            await request(url, { method: "DELETE" });
+            if (typeof onSuccess === "function") {
+                onSuccess(id);
+            }
+            return true;
+        } catch (error) {
+            if (typeof onError === "function") {
+                onError(error);
+            }
+            return false;
+        }
+    };
+
+    const handleEdit = async ({ item, url, method = "PATCH", data, onSuccess, onError }) => {
+        try {
+            const payload = await request(url, {
+                method,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data || {}),
+            });
+            if (typeof onSuccess === "function") {
+                onSuccess(payload?.data ?? payload, item, data);
+            }
+            return payload;
+        } catch (error) {
+            if (typeof onError === "function") {
+                onError(error);
+            }
+            return null;
+        }
+    };
+
+    return {
+        getCookie,
+        extractErrorMessage,
+        showToast,
+        request,
+        handleDelete,
+        handleEdit,
+    };
+})();
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

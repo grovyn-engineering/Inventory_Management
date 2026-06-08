@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics Dashboard{% endblock %}
+
+{% block content %}
+<section class="content-grid">
+    <div class="card">
+        <h3>Total Revenue</h3>
+        <div class="metric" id="summary_revenue">Loading...</div>
+        <div class="muted">Completed order revenue</div>
+    </div>
+    <div class="card">
+        <h3>Total Orders</h3>
+        <div class="metric" id="summary_orders">Loading...</div>
+        <div class="muted">Completed orders count</div>
+    </div>
+    <div class="card">
+        <h3>Total Products Sold</h3>
+        <div class="metric" id="summary_sales">Loading...</div>
+        <div class="muted">Total quantity sold</div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function formatCurrency(value) {
+    return `\u20B9${Number(value || 0).toLocaleString()}`;
+}
+
+async function loadSummary() {
+    try {
+        const response = await fetch("/api/analytics/summary/", { credentials: "same-origin" });
+        const payload = await response.json();
+        if (!response.ok) {
+            throw new Error(payload?.message || "Request failed.");
+        }
+        const data = payload?.data || {};
+        document.getElementById("summary_revenue").textContent = formatCurrency(data.total_revenue || 0);
+        document.getElementById("summary_orders").textContent = Number(data.total_orders || 0).toLocaleString();
+        document.getElementById("summary_sales").textContent = Number(data.total_sales || 0).toLocaleString();
+    } catch (error) {
+        document.getElementById("summary_revenue").textContent = "N/A";
+        document.getElementById("summary_orders").textContent = "N/A";
+        document.getElementById("summary_sales").textContent = "N/A";
+    }
+}
+
+loadSummary();
+</script>
+{% endblock %}

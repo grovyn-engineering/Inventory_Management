@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Login{% endblock %}
+
+{% block head_extra %}
+<style>
+    .auth-shell {
+        width: 100%;
+        max-width: 460px;
+        margin: 0 auto;
+    }
+
+    .auth-card {
+        border-radius: 20px;
+        padding: 34px;
+        box-shadow: 0 24px 52px rgba(15, 23, 42, 0.14);
+    }
+
+    .auth-kicker {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #1d4ed8;
+        background: #dbeafe;
+        margin-bottom: 12px;
+    }
+
+    .auth-card h1 {
+        margin: 0 0 8px;
+        font-size: 30px;
+        letter-spacing: -0.02em;
+    }
+
+    .auth-card p {
+        margin: 0 0 24px;
+        color: var(--muted);
+        font-size: 14px;
+    }
+
+    .login-form {
+        display: grid;
+        gap: 14px;
+    }
+
+    .login-form label {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        font-weight: 700;
+    }
+
+    .login-form input {
+        width: 100%;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        padding: 12px 13px;
+        font-size: 14px;
+        background: #fff;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .login-form input:focus {
+        outline: none;
+        border-color: #60a5fa;
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14);
+    }
+
+    .login-form button {
+        margin-top: 6px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.2s ease;
+    }
+
+    .login-form button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 24px rgba(37, 99, 235, 0.25);
+    }
+
+    .hint {
+        margin-top: 4px;
+        font-size: 12px;
+        color: #b91c1c;
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        border-radius: 10px;
+        padding: 10px 12px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="auth-shell">
+    <div class="auth-card">
+        <span class="auth-kicker">Inventory Automation</span>
+        <h1>Welcome back</h1>
+        <p>Sign in to access inventory, orders, and finance dashboards.</p>
+
+        <form method="post" novalidate class="login-form">
+            {% csrf_token %}
+            <label for="{{ form.username.id_for_label }}">Username</label>
+            {{ form.username }}
+
+            <label for="{{ form.password.id_for_label }}">Password</label>
+            {{ form.password }}
+
+            <button type="submit">Sign in</button>
+            {% if form.errors %}
+                <div class="hint">
+                    {% for error in form.non_field_errors %}
+                        <div>{{ error }}</div>
+                    {% endfor %}
+                    {% for field in form %}
+                        {% for error in field.errors %}
+                            <div>{{ error }}</div>
+                        {% endfor %}
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+{% endblock %}

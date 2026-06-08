@@ -1,0 +1,490 @@
+{% extends "base.html" %}
+
+{% block title %}Product Variants{% endblock %}
+
+{% block head_extra %}
+<style>
+    .checkbox-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .catalog-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+        gap: 22px;
+    }
+
+    .catalog-card {
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+        padding: 22px;
+        display: grid;
+        gap: 12px;
+    }
+
+    .catalog-title {
+        margin: 0;
+        font-size: 19px;
+        line-height: 1.35;
+    }
+
+    .catalog-meta {
+        display: grid;
+        gap: 6px;
+        font-size: 13px;
+        color: var(--muted);
+    }
+
+    .catalog-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 6px;
+    }
+
+    .edit-modal {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+        z-index: 1200;
+    }
+
+    .edit-modal.active {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .edit-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.45);
+    }
+
+    .edit-sheet {
+        position: relative;
+        z-index: 1;
+        width: min(580px, 95vw);
+        display: grid;
+        gap: 14px;
+    }
+
+    .edit-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    .pagination-controls {
+        margin-top: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .page-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 9px 14px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--surface-muted);
+        color: var(--text);
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .page-link.disabled {
+        opacity: 0.45;
+        pointer-events: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="two-col">
+    <div class="card">
+        <h3>Create Product Variant</h3>
+        {% if can_manage_variants %}
+            <form class="form" onsubmit="event.preventDefault(); createVariant();">
+                {% csrf_token %}
+                <select id="variant_product" required>
+                    <option value="">Select product</option>
+                    {% for product in products %}
+                        <option value="{{ product.id }}">{{ product.name }}</option>
+                    {% endfor %}
+                </select>
+                {% if locations %}
+                    <select id="variant_location">
+                        <option value="">Select location</option>
+                        {% for location in locations %}
+                            <option value="{{ location.id }}">{{ location.name }}</option>
+                        {% endfor %}
+                    </select>
+                {% endif %}
+                <input id="variant_name" placeholder="Variant name" required>
+                <input id="variant_sku" placeholder="SKU" required>
+                <input id="variant_barcode" placeholder="Barcode (optional)">
+                <input id="variant_price" type="number" step="0.01" min="0.01" placeholder="Price" required>
+                <input id="variant_cost_price" type="number" step="0.01" min="0" placeholder="Cost price" value="0">
+                <input type="file" id="variant_image" accept="image/*">
+                <textarea id="variant_attributes" placeholder='Attributes JSON (optional), e.g. {"size":"L"}'></textarea>
+                <label class="checkbox-row">
+                    <input id="variant_is_active" type="checkbox" checked>
+                    <span>Active variant</span>
+                </label>
+                <button type="submit">Save Variant</button>
+            </form>
+        {% else %}
+            <div class="muted">Workers can view variants but cannot create them.</div>
+        {% endif %}
+        <div class="muted" id="variant_result" style="margin-top: 8px;"></div>
+    </div>
+
+    <div class="card">
+        <h3>Variants</h3>
+        <div class="muted" style="margin-bottom: 14px;">Showing variants for {{ location_name }}.</div>
+        {% if variants %}
+            <div class="catalog-grid" id="variants_catalog_grid">
+                {% for variant in variants %}
+                    <article class="catalog-card" id="variant-card-{{ variant.id }}">
+                        {% if variant.image %}
+                         <div style="width:100%; height:160px; display:flex; align-items:center; justify-content:center; background:#f8fafc; border-radius:10px; overflow:hidden;">
+                              <img src="{{ variant.image.url }}" style="max-width:100%; max-height:100%; object-fit:contain;">
+                         </div>
+                        {% endif %}
+                        <h4 class="catalog-title">{{ variant.name }}</h4>
+                        <div class="catalog-meta">
+                            <div class="variant-product">Product: {{ variant.product.name }}</div>
+                            <div class="variant-location">Location: {{ variant.location.name|default:"-" }}</div>
+                            <div class="variant-barcode">Barcode: {{ variant.barcode|default:"-" }}</div>
+                        </div>
+                        <div class="variant-status-wrap">
+                            {% if variant.is_active %}
+                                <span class="badge success variant-status">Active</span>
+                            {% else %}
+                                <span class="badge variant-status">Inactive</span>
+                            {% endif %}
+                        </div>
+                        {% if can_manage_variants %}
+                            <div class="catalog-actions">
+                                <button
+                                    type="button"
+                                    class="btn-ghost"
+                                    onclick="openVariantEditModal(this)"
+                                    data-id="{{ variant.id }}"
+                                    data-product-id="{{ variant.product_id }}"
+                                    data-location-id="{{ variant.location_id|default:'' }}"
+                                    data-name="{{ variant.name|escapejs }}"
+                                    data-sku="{{ variant.sku|escapejs }}"
+                                    data-barcode="{{ variant.barcode|escapejs }}"
+                                    data-price="{{ variant.price }}"
+                                    data-cost-price="{{ variant.cost_price }}"
+                                    data-attributes="{{ variant.attributes|escapejs }}"
+                                    data-is-active="{{ variant.is_active|yesno:'true,false' }}"
+                                >
+                                    Edit
+                                </button>
+                                <button type="button" class="btn-danger" onclick="deleteVariant({{ variant.id }})">Delete</button>
+                            </div>
+                        {% endif %}
+                    </article>
+                {% endfor %}
+            </div>
+            <div class="muted" id="variants_empty_hint" style="display:none;">No variants yet.</div>
+            {% if is_paginated %}
+                <div class="pagination-controls">
+                    {% if page_obj.has_previous %}
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                    {% else %}
+                        <span class="page-link disabled">Previous</span>
+                    {% endif %}
+                    <span class="muted">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                    {% if page_obj.has_next %}
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                    {% else %}
+                        <span class="page-link disabled">Next</span>
+                    {% endif %}
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="muted">No variants yet.</div>
+        {% endif %}
+    </div>
+</section>
+
+<div id="variant_edit_modal" class="edit-modal" aria-hidden="true">
+    <div class="edit-backdrop" onclick="closeVariantEditModal()"></div>
+    <div class="card edit-sheet">
+        <h3 style="margin: 0;">Edit Variant</h3>
+        <form class="form" onsubmit="event.preventDefault(); saveVariantEdits();">
+            <input type="hidden" id="edit_variant_id">
+            <select id="edit_variant_product" required>
+                <option value="">Select product</option>
+                {% for product in products %}
+                    <option value="{{ product.id }}">{{ product.name }}</option>
+                {% endfor %}
+            </select>
+            {% if locations %}
+                <select id="edit_variant_location">
+                    <option value="">Select location</option>
+                    {% for location in locations %}
+                        <option value="{{ location.id }}">{{ location.name }}</option>
+                    {% endfor %}
+                </select>
+            {% endif %}
+            <input id="edit_variant_name" placeholder="Variant name" required>
+            <input id="edit_variant_sku" placeholder="SKU" required>
+            <input id="edit_variant_barcode" placeholder="Barcode (optional)">
+            <input id="edit_variant_price" type="number" step="0.01" min="0.01" placeholder="Price" required>
+            <input id="edit_variant_cost_price" type="number" step="0.01" min="0" placeholder="Cost price">
+            <textarea id="edit_variant_attributes" placeholder='Attributes JSON (optional), e.g. {"size":"L"}'></textarea>
+            <label class="checkbox-row">
+                <input id="edit_variant_is_active" type="checkbox">
+                <span>Active variant</span>
+            </label>
+            <div class="edit-actions">
+                <button type="button" class="btn-ghost" onclick="closeVariantEditModal()">Cancel</button>
+                <button type="submit">Save Changes</button>
+            </div>
+        </form>
+        <div class="muted" id="variant_edit_result"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const csrfToken = window.CrudActions.getCookie("csrftoken");
+let editingVariant = null;
+
+function refreshEmptyVariantsState() {
+    const grid = document.getElementById("variants_catalog_grid");
+    const hint = document.getElementById("variants_empty_hint");
+    if (!grid || !hint) {
+        return;
+    }
+    hint.style.display = grid.querySelector(".catalog-card") ? "none" : "block";
+}
+
+async function createVariant() {
+    const result = document.getElementById("variant_result");
+    result.textContent = "";
+
+    let parsedAttributes = {};
+    const attributesText = document.getElementById("variant_attributes").value.trim();
+
+    if (attributesText) {
+        try {
+            parsedAttributes = JSON.parse(attributesText);
+        } catch (error) {
+            const message = "Attributes must be valid JSON.";
+            result.textContent = message;
+            window.CrudActions.showToast(message, "error");
+            return;
+        }
+    }
+
+    const formData = new FormData();
+
+    formData.append("product_id", document.getElementById("variant_product").value);
+    formData.append("name", document.getElementById("variant_name").value.trim());
+    formData.append("sku", document.getElementById("variant_sku").value.trim());
+    formData.append("barcode", document.getElementById("variant_barcode").value.trim());
+    formData.append("price", document.getElementById("variant_price").value);
+    formData.append("cost_price", document.getElementById("variant_cost_price").value || "0");
+    formData.append("attributes", JSON.stringify(parsedAttributes));
+    formData.append("is_active", document.getElementById("variant_is_active").checked);
+
+    const locationInput = document.getElementById("variant_location");
+    if (locationInput && locationInput.value) {
+        formData.append("location_id", locationInput.value);
+    }
+
+    const file = document.getElementById("variant_image").files[0];
+    if (file) {
+        formData.append("image", file);
+    }
+
+    try {
+        const res = await fetch("/api/inventory/create-product-variant/", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "X-CSRFToken": csrfToken
+            },
+            body: formData
+        });
+
+        const data = await res.json();
+        const isCreateSuccess = res.status === 200 || res.status === 201;
+        if (isCreateSuccess) {
+            const message = "Product variant added successfully";
+            result.textContent = message;
+            window.CrudActions.showToast(message, "success");
+            setTimeout(() => window.location.reload(), 900);
+            return;
+        }
+        const errorMessage = window.CrudActions.extractErrorMessage(data);
+        result.textContent = errorMessage;
+        window.CrudActions.showToast(errorMessage, "error");
+    } catch (_error) {
+        const message = "Request failed.";
+        result.textContent = message;
+        window.CrudActions.showToast(message, "error");
+    }
+}
+
+function openVariantEditModal(button) {
+    editingVariant = {
+        id: Number(button.dataset.id),
+        button,
+    };
+    document.getElementById("edit_variant_id").value = button.dataset.id;
+    document.getElementById("edit_variant_product").value = button.dataset.productId || "";
+    document.getElementById("edit_variant_name").value = button.dataset.name || "";
+    document.getElementById("edit_variant_sku").value = button.dataset.sku || "";
+    document.getElementById("edit_variant_barcode").value = button.dataset.barcode || "";
+    document.getElementById("edit_variant_price").value = button.dataset.price || "";
+    document.getElementById("edit_variant_cost_price").value = button.dataset.costPrice || "0";
+    document.getElementById("edit_variant_attributes").value = button.dataset.attributes || "{}";
+    document.getElementById("edit_variant_is_active").checked = (button.dataset.isActive === "true");
+    const editLocation = document.getElementById("edit_variant_location");
+    if (editLocation) {
+        editLocation.value = button.dataset.locationId || "";
+    }
+    document.getElementById("variant_edit_result").textContent = "";
+    document.getElementById("variant_edit_modal").classList.add("active");
+}
+
+function closeVariantEditModal() {
+    document.getElementById("variant_edit_modal").classList.remove("active");
+}
+
+async function saveVariantEdits() {
+    const result = document.getElementById("variant_edit_result");
+    result.textContent = "";
+    const variantId = document.getElementById("edit_variant_id").value;
+
+    let parsedAttributes = {};
+    const attributesText = document.getElementById("edit_variant_attributes").value.trim();
+    if (attributesText) {
+        try {
+            parsedAttributes = JSON.parse(attributesText);
+        } catch (error) {
+            result.textContent = "Attributes must be valid JSON.";
+            return;
+        }
+    }
+
+    const payload = {
+        product_id: document.getElementById("edit_variant_product").value,
+        name: document.getElementById("edit_variant_name").value.trim(),
+        sku: document.getElementById("edit_variant_sku").value.trim(),
+        barcode: document.getElementById("edit_variant_barcode").value.trim(),
+        price: document.getElementById("edit_variant_price").value,
+        cost_price: document.getElementById("edit_variant_cost_price").value || "0",
+        attributes: parsedAttributes,
+        is_active: document.getElementById("edit_variant_is_active").checked,
+    };
+    const editLocation = document.getElementById("edit_variant_location");
+    if (editLocation && editLocation.value) {
+        payload.location_id = editLocation.value;
+    }
+
+    await window.CrudActions.handleEdit({
+        item: editingVariant || { id: Number(variantId) },
+        url: `/api/inventory/variants/${variantId}/`,
+        method: "PATCH",
+        data: payload,
+        onSuccess: (updatedVariant, item, sentData) => {
+            const id = Number(item?.id || variantId);
+            const card = document.getElementById(`variant-card-${id}`);
+            if (card) {
+                const nameNode = card.querySelector(".catalog-title");
+                const productNode = card.querySelector(".variant-product");
+                const locationNode = card.querySelector(".variant-location");
+                const barcodeNode = card.querySelector(".variant-barcode");
+                const statusNode = card.querySelector(".variant-status");
+
+                if (nameNode) {
+                    nameNode.textContent = updatedVariant?.name || sentData.name;
+                }
+                if (productNode) {
+                    const selectedProduct = document.querySelector(
+                        `#edit_variant_product option[value="${sentData.product_id}"]`
+                    );
+                    const productName = updatedVariant?.product_name
+                        || selectedProduct?.textContent
+                        || productNode.textContent.replace("Product:", "").trim();
+                    productNode.textContent = `Product: ${productName}`;
+                }
+                if (locationNode) {
+                    const locationSelect = document.getElementById("edit_variant_location");
+                    const selectedLocation = locationSelect
+                        ? locationSelect.options[locationSelect.selectedIndex]?.textContent || "-"
+                        : locationNode.textContent.replace("Location:", "").trim();
+                    locationNode.textContent = `Location: ${selectedLocation || "-"}`;
+                }
+                if (barcodeNode) {
+                    const barcode = updatedVariant?.barcode || sentData.barcode || "-";
+                    barcodeNode.textContent = `Barcode: ${barcode}`;
+                }
+                if (statusNode) {
+                    const isActive = Boolean(updatedVariant?.is_active ?? sentData.is_active);
+                    statusNode.textContent = isActive ? "Active" : "Inactive";
+                    statusNode.classList.toggle("success", isActive);
+                }
+
+                const editButton = card.querySelector("button[onclick='openVariantEditModal(this)']");
+                if (editButton) {
+                    editButton.dataset.name = updatedVariant?.name || sentData.name;
+                    editButton.dataset.productId = String(updatedVariant?.product_id ?? sentData.product_id ?? "");
+                    editButton.dataset.sku = updatedVariant?.sku || sentData.sku || "";
+                    editButton.dataset.barcode = updatedVariant?.barcode || sentData.barcode || "";
+                    editButton.dataset.price = String(updatedVariant?.price ?? sentData.price ?? "");
+                    editButton.dataset.costPrice = String(updatedVariant?.cost_price ?? sentData.cost_price ?? "0");
+                    editButton.dataset.attributes = JSON.stringify(updatedVariant?.attributes ?? sentData.attributes ?? {});
+                    editButton.dataset.isActive = String(updatedVariant?.is_active ?? sentData.is_active ?? true);
+                }
+            }
+            result.textContent = "Variant updated.";
+            closeVariantEditModal();
+        },
+        onError: (error) => {
+            result.textContent = error.message || "Request failed.";
+        },
+    });
+}
+
+async function deleteVariant(variantId) {
+    const result = document.getElementById("variant_result");
+    result.textContent = "";
+    await window.CrudActions.handleDelete({
+        id: variantId,
+        url: `/api/inventory/variants/${variantId}/`,
+        confirmMessage: "Delete this variant?",
+        onSuccess: (id) => {
+            const card = document.getElementById(`variant-card-${id}`);
+            if (card) {
+                card.remove();
+            }
+            refreshEmptyVariantsState();
+            result.textContent = "Variant deleted.";
+        },
+        onError: (error) => {
+            result.textContent = error.message || "Request failed.";
+        },
+    });
+}
+</script>
+{% endblock %}

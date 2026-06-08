@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+
+{% block title %}Payment{% endblock %}
+
+{% block head_extra %}
+<style>
+    #client-messages {
+        display: grid;
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+
+    .payment-options {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 12px;
+    }
+
+    .payment-option {
+        border: 1px solid var(--border);
+        background: var(--surface);
+        border-radius: 12px;
+        padding: 10px;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .payment-option.selected {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+    .summary-list {
+        list-style: none;
+        margin: 12px 0 0;
+        padding: 0;
+        display: grid;
+        gap: 8px;
+    }
+
+    .summary-item {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .payment-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        margin-top: 16px;
+        flex-wrap: wrap;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="client-messages"></div>
+
+<section class="card">
+    <h2 style="margin: 0;">Payment</h2>
+    <div class="muted" style="margin-top: 4px;">{{ location_name }}</div>
+</section>
+
+<section class="card" style="margin-top: 14px;">
+    <div class="eyebrow">Selected Items</div>
+    <ul id="summary-list" class="summary-list">
+        <li class="muted">No items in cart.</li>
+    </ul>
+
+    <div class="payment-footer">
+        <div>
+            <div class="muted">Total</div>
+            <div style="font-size: 22px; font-weight: 700;" id="order-total">&#8377;0.00</div>
+        </div>
+        <a href="{% url cart_page_url %}">
+            <button type="button" class="btn-ghost">Back to Cart</button>
+        </a>
+    </div>
+</section>
+
+<section class="card" style="margin-top: 14px;">
+    <div class="eyebrow">Choose Payment Method</div>
+    <div class="payment-options">
+        <button type="button" class="payment-option selected" data-method="upi">UPI</button>
+        <button type="button" class="payment-option" data-method="netbanking">Net Banking</button>
+        <button type="button" class="payment-option" data-method="card">Card</button>
+        <button type="button" class="payment-option" data-method="cash">Cash</button>
+    </div>
+    <button type="button" id="confirm-payment-btn" style="margin-top: 12px;">Complete Order</button>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+    const cartStorageKey = "orders_cart_v1";
+    const summaryList = document.getElementById("summary-list");
+    const orderTotalNode = document.getElementById("order-total");
+    const paymentButtons = Array.from(document.querySelectorAll(".payment-option"));
+    const confirmPaymentButton = document.getElementById("confirm-payment-btn");
+    const messageStack = document.getElementById("client-messages");
+    const razorpayKeyId = "{{ razorpay_key_id|escapejs }}";
+    const ordersPageUrl = "{% url orders_page_url %}";
+    const userName = "{{ request.user.get_full_name|default:request.user.username|escapejs }}";
+    const userEmail = "{{ request.user.email|escapejs }}";
+
+    let selectedMethod = "upi";
+    let inFlight = false;
+    console.log(window.Razorpay);
+
+    const formatAmount = (amount) => `\u20B9${(Number(amount) || 0).toFixed(2)}`;
+
+    const showMessage = (message, type = "success") => {
+        const notice = document.createElement("div");
+        notice.className = `notice ${type === "error" ? "error" : ""}`;
+        notice.textContent = message;
+        messageStack.innerHTML = "";
+        messageStack.appendChild(notice);
+    };
+
+    const getCookie = (name) => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) {
+            return parts.pop().split(";").shift();
+        }
+        return "";
+    };
+
+    const loadCart = () => {
+        try {
+            const stored = sessionStorage.getItem(cartStorageKey);
+            const parsed = stored ? JSON.parse(stored) : [];
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (error) {
+            return [];
+        }
+    };
+
+    const clearCart = () => {
+        sessionStorage.setItem(cartStorageKey, JSON.stringify([]));
+    };
+
+    const cartTotal = (cart) => cart.reduce(
+        (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || item.qty || 0),
+        0,
+    );
+
+    const normalizedVariantId = (value) => {
+        if (value === null || value === undefined || value === "" || value === "null") {
+            return null;
+        }
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const renderSummary = () => {
+        const cart = loadCart();
+        if (!cart.length) {
+            summaryList.innerHTML = '<li class="muted">No items in cart.</li>';
+            orderTotalNode.textContent = formatAmount(0);
+            confirmPaymentButton.disabled = true;
+            return;
+        }
+
+        summaryList.innerHTML = cart.map((item) => {
+            const quantity = Number(item.quantity || item.qty || 0);
+            const total = Number(item.price || 0) * quantity;
+            return `
+                <li class="summary-item">
+                    <span>${item.product_name || item.name} - ${item.variant_name || item.variant} x ${quantity}</span>
+                    <strong>${formatAmount(total)}</strong>
+                </li>
+            `;
+        }).join("");
+        orderTotalNode.textContent = formatAmount(cartTotal(cart));
+        confirmPaymentButton.disabled = false;
+    };
+
+    const payloadItems = () => loadCart().map((item) => ({
+        product_id: Number(item.product_id || item.productId),
+        variant_id: normalizedVariantId(item.variant_id || item.variantId),
+        quantity: Number(item.quantity || item.qty),
+    }));
+
+    const selectedLocationId = () => {
+        const cart = loadCart();
+        if (!cart.length) {
+            return null;
+        }
+        return Number(cart[0].location_id || 0) || null;
+    };
+
+    const validateCartLocation = () => {
+        const cart = loadCart();
+        const locationId = selectedLocationId();
+        cart.forEach((item) => {
+            if (Number(item.location_id || 0) !== Number(locationId || 0)) {
+                throw new Error("Cart contains items from different location");
+            }
+        });
+    };
+
+    const createOrder = async () => {
+        validateCartLocation();
+        const response = await fetch("/api/orders/create-order/", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie("csrftoken"),
+            },
+            credentials: "same-origin",
+            body: JSON.stringify({
+                items: payloadItems(),
+                payment_method: selectedMethod,
+                location_id: selectedLocationId(),
+            }),
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.success) {
+            throw new Error(payload.error || payload.message || "Unable to create order.");
+        }
+        const data = payload.data || {};
+        const amountPaise = Number(data.amount ?? 0);
+        const razorpayOrderId = String(data.id || "");
+        if (!Number.isInteger(amountPaise) || amountPaise <= 0) {
+            throw new Error("Invalid amount (paise) from create-order API.");
+        }
+        if (selectedMethod !== "cash" && !/^order_[A-Za-z0-9]+$/.test(razorpayOrderId)) {
+            throw new Error("Invalid Razorpay order ID from create-order API.");
+        }
+        return {
+            id: razorpayOrderId,
+            amount: amountPaise,
+            currency: data.currency || "INR",
+        };
+    };
+
+    const verifyPayment = async (paymentResponse) => {
+        const response = await fetch("/api/orders/verify-payment/", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie("csrftoken"),
+            },
+            credentials: "same-origin",
+            body: JSON.stringify({
+                razorpay_order_id: paymentResponse.razorpay_order_id,
+                razorpay_payment_id: paymentResponse.razorpay_payment_id,
+                razorpay_signature: paymentResponse.razorpay_signature,
+                payment_method: selectedMethod,
+            }),
+        });
+        const payload = await response.json();
+        console.log("VERIFY RESPONSE:", payload);
+        if (!response.ok || !payload.success) {
+            throw new Error(payload.error || payload.message || "Payment verification failed.");
+        }
+    };
+
+    const openRazorpay = async (orderData) => {
+        if (!razorpayKeyId) {
+            throw new Error("Razorpay key not configured.");
+        }
+        if (!orderData.id || !Number.isInteger(orderData.amount) || orderData.amount <= 0) {
+            throw new Error("Invalid payment order configuration.");
+        }
+        if (!/^order_[A-Za-z0-9]+$/.test(orderData.id)) {
+            throw new Error("Razorpay order_id is invalid.");
+        }
+        console.log(orderData);
+        console.log("ORDER DATA:", orderData);
+        const methodFlags = {
+            upi: { upi: true, card: false, netbanking: false, wallet: false },
+            card: { upi: false, card: true, netbanking: false, wallet: false },
+            netbanking: { upi: false, card: false, netbanking: true, wallet: false },
+        };
+        const options = {
+            key: razorpayKeyId,
+            amount: orderData.amount,
+            currency: orderData.currency || "INR",
+            name: "Inventory App",
+            description: "Order Payment",
+            order_id: orderData.id,
+            prefill: { name: userName, email: userEmail },
+            method: methodFlags[selectedMethod] || methodFlags.upi,
+            theme: { color: "#3399cc" },
+            handler: async (response) => {
+                console.log("PAYMENT SUCCESS:", response);
+                try {
+                    await verifyPayment(response);
+                    clearCart();
+                    window.location.href = ordersPageUrl;
+                } catch (error) {
+                    console.error("VERIFY ERROR:", error);
+                    showMessage("Payment verification failed.", "error");
+                }
+            },
+            modal: {
+                ondismiss: () => {
+                    console.log("Payment popup closed");
+                },
+            },
+        };
+        const checkout = new Razorpay(options);
+        checkout.on("payment.failed", (response) => {
+            console.error("RAZORPAY ERROR:", response.error || response);
+            const reason = response.error && response.error.description
+                ? response.error.description
+                : "Payment failed.";
+            showMessage(reason, "error");
+        });
+        checkout.open();
+    };
+
+    const confirmPayment = async () => {
+        const cart = loadCart();
+        if (!cart.length) {
+            showMessage("Cart is empty.", "error");
+            return;
+        }
+        try {
+            validateCartLocation();
+        } catch (error) {
+            showMessage(error.message || "Cart location validation failed.", "error");
+            return;
+        }
+        if (inFlight) {
+            return;
+        }
+        inFlight = true;
+        confirmPaymentButton.disabled = true;
+        try {
+            const orderData = await createOrder();
+            if (selectedMethod === "cash") {
+                clearCart();
+                showMessage("Order completed with Cash Payment.");
+                setTimeout(() => {
+                    window.location.href = ordersPageUrl;
+                }, 600);
+                return;
+            }
+            await openRazorpay(orderData);
+        } catch (error) {
+            showMessage(error.message || "Unable to complete payment.", "error");
+        } finally {
+            inFlight = false;
+            confirmPaymentButton.disabled = false;
+            renderSummary();
+        }
+    };
+
+    paymentButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            selectedMethod = button.dataset.method;
+            paymentButtons.forEach((item) => item.classList.toggle("selected", item === button));
+        });
+    });
+
+    confirmPaymentButton.addEventListener("click", confirmPayment);
+    renderSummary();
+})();
+</script>
+{% endblock %}

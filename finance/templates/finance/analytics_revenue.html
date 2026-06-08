@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics Revenue{% endblock %}
+
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .revenue-grid {
+        display: grid;
+        gap: 18px;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    }
+
+    .chart-card canvas {
+        width: 100% !important;
+        height: 300px !important;
+        margin-top: 12px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="revenue-grid">
+    <div class="card chart-card">
+        <h3>Revenue Today (Hourly)</h3>
+        <div class="muted" id="today_state">Loading...</div>
+        <canvas id="today_chart" style="display: none;"></canvas>
+    </div>
+    <div class="card chart-card">
+        <h3>Revenue This Month (Daily)</h3>
+        <div class="muted" id="month_state">Loading...</div>
+        <canvas id="month_chart" style="display: none;"></canvas>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let todayChart = null;
+let monthChart = null;
+
+function setChartState(stateId, canvasId, text, showCanvas) {
+    const state = document.getElementById(stateId);
+    const canvas = document.getElementById(canvasId);
+    state.textContent = text;
+    state.style.display = showCanvas ? "none" : "block";
+    canvas.style.display = showCanvas ? "block" : "none";
+}
+
+function buildTodaySeries(todayRevenue) {
+    const now = new Date();
+    const labels = Array.from({ length: 24 }, (_, hour) => String(hour));
+    const values = new Array(24).fill(0);
+    values[now.getHours()] = todayRevenue;
+    return { labels, values };
+}
+
+function buildMonthSeries(rows) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const labels = Array.from({ length: daysInMonth }, (_, index) => String(index + 1));
+    const values = new Array(daysInMonth).fill(0);
+
+    rows.forEach((row) => {
+        if (!row.date) {
+            return;
+        }
+        const parsed = new Date(`${row.date}T00:00:00`);
+        if (parsed.getFullYear() === year && parsed.getMonth() === month) {
+            values[parsed.getDate() - 1] += Number(row.revenue || 0);
+        }
+    });
+    return { labels, values };
+}
+
+async function loadRevenueCharts() {
+    try {
+        const response = await fetch("/api/analytics/revenue-trend/", { credentials: "same-origin" });
+        const payload = await response.json();
+        if (!response.ok) {
+            throw new Error(payload?.message || "Request failed.");
+        }
+        const rows = payload?.data || [];
+
+        const todayIso = new Date().toISOString().slice(0, 10);
+        const todayTotal = rows
+            .filter((row) => row.date === todayIso)
+            .reduce((sum, row) => sum + Number(row.revenue || 0), 0);
+        const todaySeries = buildTodaySeries(todayTotal);
+
+        setChartState("today_state", "today_chart", "", true);
+        if (todayChart) {
+            todayChart.destroy();
+        }
+        todayChart = new Chart(document.getElementById("today_chart"), {
+            type: "bar",
+            data: {
+                labels: todaySeries.labels,
+                datasets: [{
+                    label: "Revenue",
+                    data: todaySeries.values,
+                    backgroundColor: "#2563eb"
+                }]
+            }
+        });
+        if (!todayTotal) {
+            document.getElementById("today_state").textContent = "No revenue data available for today.";
+            document.getElementById("today_state").style.display = "block";
+        }
+
+        const monthSeries = buildMonthSeries(rows);
+        if (!monthSeries.values.some((value) => value > 0)) {
+            setChartState("month_state", "month_chart", "No revenue data available for this month.", false);
+        } else {
+            setChartState("month_state", "month_chart", "", true);
+            if (monthChart) {
+                monthChart.destroy();
+            }
+            monthChart = new Chart(document.getElementById("month_chart"), {
+                type: "bar",
+                data: {
+                    labels: monthSeries.labels,
+                    datasets: [{
+                        label: "Revenue",
+                        data: monthSeries.values,
+                        backgroundColor: "#0f766e"
+                    }]
+                }
+            });
+        }
+    } catch (error) {
+        setChartState("today_state", "today_chart", "Unable to load today's revenue.", false);
+        setChartState("month_state", "month_chart", "Unable to load monthly revenue.", false);
+    }
+}
+
+loadRevenueCharts();
+</script>
+{% endblock %}

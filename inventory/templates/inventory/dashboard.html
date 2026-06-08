@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Inventory Overview{% endblock %}
+
+{% block content %}
+<section class="content-grid">
+    <div class="card">
+        <h3>Products</h3>
+        <div class="metric">{{ product_count }}</div>
+        <div class="muted">Active items in catalog</div>
+    </div>
+    <div class="card">
+        <h3>Locations</h3>
+        <div class="metric">{{ location_count }}</div>
+        <div class="muted">Warehouses and stores</div>
+    </div>
+    <div class="card">
+        <h3>Stock Records</h3>
+        <div class="metric">{{ stock_count }}</div>
+        <div class="muted">Tracked batches</div>
+    </div>
+    <div class="card">
+        <h3>Total Units</h3>
+        <div class="metric">{{ total_units }}</div>
+        <div class="muted">Sum of all quantities</div>
+    </div>
+    <div class="card">
+        <h3>Quick Actions</h3>
+        <div class="notice">Use the side navigation to add products, update stock, or manage locations.</div>
+    </div>
+</section>
+
+<section class="two-col" style="margin-top: 24px;">
+    <div class="card">
+        <h3>Low Stock</h3>
+        {% if low_stock %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Variant</th>
+                        <th>Location</th>
+                        <th>Qty</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stock in low_stock %}
+                        <tr>
+                            <td>{{ stock.product.name }}</td>
+                            <td>{{ stock.variant.name|default:"-" }}</td>
+                            <td>{{ stock.location.name }}</td>
+                            <td><span class="badge warning">{{ stock.quantity }}</span></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="muted">No low stock items detected.</div>
+        {% endif %}
+    </div>
+    <div class="card">
+        <h3>Expiring Soon</h3>
+        {% if expiring_stock %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Variant</th>
+                        <th>Location</th>
+                        <th>Expiry</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stock in expiring_stock %}
+                        <tr>
+                            <td>{{ stock.product.name }}</td>
+                            <td>{{ stock.variant.name|default:"-" }}</td>
+                            <td>{{ stock.location.name }}</td>
+                            <td><span class="badge danger">{{ stock.expiry_date }}</span></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="muted">No upcoming expiries in the next 7 days.</div>
+        {% endif %}
+    </div>
+</section>
+
+<section style="margin-top: 24px;">
+    <div class="card">
+        <h3>Recent Products</h3>
+        {% if recent_products %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Category</th>
+                        <th>Unit</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in recent_products %}
+                        <tr>
+                            <td>{{ product.name }}</td>
+                            <td>{{ product.category|default:"-" }}</td>
+                            <td>{{ product.unit|default:"-" }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="muted">No products found.</div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

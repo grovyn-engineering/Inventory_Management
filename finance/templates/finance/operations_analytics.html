@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+
+{% block title %}Operations Analytics{% endblock %}
+
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .analytics-header {
+        margin-bottom: 18px;
+    }
+
+    .analytics-tabs {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 18px;
+    }
+
+    .analytics-tab {
+        padding: 10px 14px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text);
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .analytics-tab:hover {
+        background: var(--surface-muted);
+    }
+
+    .analytics-tab.active {
+        background: #dbeafe;
+        border-color: #93c5fd;
+        color: #1d4ed8;
+    }
+
+    .analytics-panel {
+        display: none;
+    }
+
+    .analytics-panel.active {
+        display: block;
+    }
+
+    .analytics-grid {
+        display: grid;
+        gap: 18px;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    }
+
+    .analytics-grid .card canvas {
+        width: 100% !important;
+        height: 300px !important;
+        margin-top: 12px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<nav class="analytics-tabs" aria-label="Analytics tabs">
+    <button class="analytics-tab active" type="button" data-tab="revenue">Revenue</button>
+    <button class="analytics-tab" type="button" data-tab="products">Products</button>
+    <button class="analytics-tab" type="button" data-tab="locations">Locations</button>
+</nav>
+
+<section class="analytics-panel active" data-panel="revenue">
+    <div class="analytics-grid">
+        <div class="card">
+            <h3>Revenue Today</h3>
+            <div class="muted" id="today_state">Loading...</div>
+            <canvas id="today_chart" style="display: none;"></canvas>
+        </div>
+        <div class="card">
+            <h3>Revenue This Month</h3>
+            <div class="muted" id="month_state">Loading...</div>
+            <canvas id="month_chart" style="display: none;"></canvas>
+        </div>
+    </div>
+</section>
+
+<section class="analytics-panel" data-panel="products">
+    <div class="analytics-grid">
+        <div class="card">
+            <h3>Products Sold</h3>
+            <div class="muted" id="products_state">Loading...</div>
+            <canvas id="products_chart" style="display: none;"></canvas>
+        </div>
+    </div>
+</section>
+
+<section class="analytics-panel" data-panel="locations">
+    <div class="analytics-grid">
+        <div class="card">
+            <h3>Revenue by Location</h3>
+            <div class="muted" id="locations_state">Loading...</div>
+            <canvas id="locations_chart" style="display: none;"></canvas>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const endpoints = {
+    trend: "/api/analytics/revenue-trend/",
+    topProducts: "/api/analytics/top-products/",
+    locationRevenue: "/api/analytics/location-revenue/"
+};
+
+let todayChart = null;
+let monthChart = null;
+let productsChart = null;
+let locationsChart = null;
+const loadedTabs = {
+    revenue: false,
+    products: false,
+    locations: false
+};
+
+function setChartState(stateId, canvasId, message, showCanvas) {
+    const state = document.getElementById(stateId);
+    const canvas = document.getElementById(canvasId);
+    state.textContent = message;
+    state.style.display = showCanvas ? "none" : "block";
+    canvas.style.display = showCanvas ? "block" : "none";
+}
+
+async function fetchData(url) {
+    const response = await fetch(url, { credentials: "same-origin" });
+    const payload = await response.json();
+    if (!response.ok) {
+        throw new Error(payload?.message || "Unable to fetch analytics data.");
+    }
+    return payload?.data || [];
+}
+
+function buildTodaySeries(revenueRows) {
+    const currentHour = new Date().getHours();
+    const today = new Date().toISOString().slice(0, 10);
+    const todayRevenue = revenueRows
+        .filter((row) => row.date === today)
+        .reduce((sum, row) => sum + Number(row.revenue || 0), 0);
+    const labels = Array.from({ length: 24 }, (_, index) => String(index));
+    const values = new Array(24).fill(0);
+    values[currentHour] = todayRevenue;
+    return { labels, values, todayRevenue };
+}
+
+function buildMonthSeries(revenueRows) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const labels = Array.from({ length: daysInMonth }, (_, index) => String(index + 1));
+    const values = new Array(daysInMonth).fill(0);
+
+    revenueRows.forEach((row) => {
+        if (!row.date) {
+            return;
+        }
+        const dt = new Date(`${row.date}T00:00:00`);
+        if (dt.getFullYear() === year && dt.getMonth() === month) {
+            values[dt.getDate() - 1] += Number(row.revenue || 0);
+        }
+    });
+    return { labels, values };
+}
+
+async function loadRevenueCharts() {
+    try {
+        const rows = await fetchData(endpoints.trend);
+
+        const today = buildTodaySeries(rows);
+        setChartState("today_state", "today_chart", "", true);
+        if (todayChart) {
+            todayChart.destroy();
+        }
+        todayChart = new Chart(document.getElementById("today_chart"), {
+            type: "bar",
+            data: {
+                labels: today.labels,
+                datasets: [{
+                    label: "Revenue",
+                    data: today.values,
+                    backgroundColor: "#2563eb"
+                }]
+            }
+        });
+        if (!today.todayRevenue) {
+            document.getElementById("today_state").textContent = "No revenue data available for today.";
+            document.getElementById("today_state").style.display = "block";
+        }
+
+        const month = buildMonthSeries(rows);
+        if (!month.values.some((value) => value > 0)) {
+            setChartState("month_state", "month_chart", "No revenue data available for this month.", false);
+            return;
+        }
+        setChartState("month_state", "month_chart", "", true);
+        if (monthChart) {
+            monthChart.destroy();
+        }
+        monthChart = new Chart(document.getElementById("month_chart"), {
+            type: "bar",
+            data: {
+                labels: month.labels,
+                datasets: [{
+                    label: "Revenue",
+                    data: month.values,
+                    backgroundColor: "#0f766e"
+                }]
+            }
+        });
+    } catch (error) {
+        setChartState("today_state", "today_chart", "Unable to load today's revenue.", false);
+        setChartState("month_state", "month_chart", "Unable to load monthly revenue.", false);
+    }
+}
+
+async function loadProductsChart() {
+    try {
+        const rows = await fetchData(endpoints.topProducts);
+        if (!rows.length) {
+            setChartState("products_state", "products_chart", "No products sold data available.", false);
+            return;
+        }
+        const sortedRows = [...rows].sort((a, b) => Number(b.quantity_sold || 0) - Number(a.quantity_sold || 0));
+        const topRows = sortedRows.slice(0, 12);
+        setChartState("products_state", "products_chart", "", true);
+
+        if (productsChart) {
+            productsChart.destroy();
+        }
+        productsChart = new Chart(document.getElementById("products_chart"), {
+            type: "bar",
+            data: {
+                labels: topRows.map((row) => row.product_name),
+                datasets: [{
+                    label: "Quantity Sold",
+                    data: topRows.map((row) => Number(row.quantity_sold || 0)),
+                    backgroundColor: "#2563eb"
+                }]
+            }
+        });
+    } catch (error) {
+        setChartState("products_state", "products_chart", "Unable to load products sold data.", false);
+    }
+}
+
+async function loadLocationsChart() {
+    try {
+        const rows = await fetchData(endpoints.locationRevenue);
+        if (!rows.length) {
+            setChartState("locations_state", "locations_chart", "No location revenue data available.", false);
+            return;
+        }
+        setChartState("locations_state", "locations_chart", "", true);
+
+        if (locationsChart) {
+            locationsChart.destroy();
+        }
+        locationsChart = new Chart(document.getElementById("locations_chart"), {
+            type: "bar",
+            data: {
+                labels: rows.map((row) => row.location),
+                datasets: [{
+                    label: "Revenue",
+                    data: rows.map((row) => Number(row.revenue || 0)),
+                    backgroundColor: "#0f766e"
+                }]
+            }
+        });
+    } catch (error) {
+        setChartState("locations_state", "locations_chart", "Unable to load location revenue data.", false);
+    }
+}
+
+function activateTab(tabName) {
+    document.querySelectorAll(".analytics-tab").forEach((tab) => {
+        tab.classList.toggle("active", tab.dataset.tab === tabName);
+    });
+    document.querySelectorAll(".analytics-panel").forEach((panel) => {
+        panel.classList.toggle("active", panel.dataset.panel === tabName);
+    });
+
+    if (tabName === "revenue" && !loadedTabs.revenue) {
+        loadedTabs.revenue = true;
+        loadRevenueCharts();
+    }
+    if (tabName === "products" && !loadedTabs.products) {
+        loadedTabs.products = true;
+        loadProductsChart();
+    }
+    if (tabName === "locations" && !loadedTabs.locations) {
+        loadedTabs.locations = true;
+        loadLocationsChart();
+    }
+}
+
+document.querySelectorAll(".analytics-tab").forEach((tab) => {
+    tab.addEventListener("click", () => activateTab(tab.dataset.tab));
+});
+
+activateTab("revenue");
+</script>
+{% endblock %}

@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Locations{% endblock %}
+
+{% block content %}
+<section class="two-col">
+    {% if request.user.normalized_role == "admin" %}
+        <div class="card">
+            <h3>Create Location</h3>
+            <form class="form" onsubmit="event.preventDefault(); createLocation();">
+                {% csrf_token %}
+                <input id="location_name" placeholder="Location name" required>
+                <input id="location_code" placeholder="Location code (optional)">
+                <select id="location_type">
+                    <option value="store">Store</option>
+                    <option value="warehouse">Warehouse</option>
+                    <option value="outlet">Outlet</option>
+                </select>
+                <select id="location_parent">
+                    <option value="">Parent location (optional)</option>
+                    {% for location in parent_locations %}
+                        <option value="{{ location.id }}">{{ location.name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit">Save Location</button>
+            </form>
+            <div class="muted" id="location_result" style="margin-top: 8px;"></div>
+        </div>
+    {% endif %}
+    <div class="card">
+        <h3>Locations</h3>
+        {% if locations %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Code</th>
+                        <th>Type</th>
+                        <th>Parent</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for location in locations %}
+                        <tr>
+                            <td>{{ location.name }}</td>
+                            <td>{{ location.code }}</td>
+                            <td>{{ location.location_type }}</td>
+                            <td>{{ location.parent.name|default:"-" }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="muted">No locations yet.</div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const csrfToken = window.CrudActions.getCookie("csrftoken");
+
+async function createLocation() {
+    const result = document.getElementById("location_result");
+    if (!result) {
+        return;
+    }
+    result.textContent = "";
+
+    const payload = {
+        name: document.getElementById("location_name").value.trim(),
+        code: document.getElementById("location_code").value.trim(),
+        location_type: document.getElementById("location_type").value
+    };
+    const parentId = document.getElementById("location_parent").value;
+    if (parentId) {
+        payload.parent_id = parentId;
+    }
+
+    try {
+        const res = await fetch("/api/inventory/create-location/", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrfToken
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        const isCreateSuccess = res.status === 200 || res.status === 201;
+        if (isCreateSuccess) {
+            const message = "Location added successfully";
+            result.textContent = message;
+            window.CrudActions.showToast(message, "success");
+            setTimeout(() => window.location.reload(), 900);
+            return;
+        }
+        const errorMessage = window.CrudActions.extractErrorMessage(data);
+        result.textContent = errorMessage;
+        window.CrudActions.showToast(errorMessage, "error");
+    } catch (_error) {
+        const message = "Request failed.";
+        result.textContent = message;
+        window.CrudActions.showToast(message, "error");
+    }
+}
+</script>
+{% endblock %}

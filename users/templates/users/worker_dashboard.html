@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Worker Console{% endblock %}
+
+{% block content %}
+<section class="content-grid">
+    <div class="card">
+        <h3>Products</h3>
+        <div class="metric">{{ product_count }}</div>
+        <div class="muted">Visible in your assigned location catalog.</div>
+    </div>
+    <div class="card">
+        <h3>Stock Records</h3>
+        <div class="metric">{{ stock_count }}</div>
+        <div class="muted">Batches available for review and updates.</div>
+    </div>
+    <div class="card">
+        <h3>Today</h3>
+        <div class="metric">{{ today }}</div>
+        <div class="muted">Current operating date.</div>
+    </div>
+</section>
+
+<section class="two-col" style="margin-top: 24px;">
+    <a class="card" href="{% url 'inventory_pages:products' %}">
+        <h3>Product</h3>
+        <div class="muted">View products available to your location.</div>
+    </a>
+    <a class="card" href="{% url 'inventory_pages:stock' %}">
+        <h3>Stock</h3>
+        <div class="muted">Check stock levels and update stock where permitted.</div>
+    </a>
+    <a class="card" href="{% url 'orders_page' %}">
+        <h3>Orders</h3>
+        <div class="muted">Create orders using product variants for your location.</div>
+    </a>
+</section>
+
+<section style="margin-top: 24px;">
+    <div class="card">
+        <h3>Low Stock</h3>
+        {% if low_stock %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Location</th>
+                        <th>Qty</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stock in low_stock %}
+                        <tr>
+                            <td>{{ stock.product.name }}</td>
+                            <td>{{ stock.location.name }}</td>
+                            <td><span class="badge warning">{{ stock.quantity }}</span></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="muted">No low stock alerts.</div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

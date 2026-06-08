@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login</title>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(to right, #f3e5d8, #f7f3ef);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .login-card {
+            background: #ffffff;
+            padding: 30px;
+            width: 320px;
+            border-radius: 14px;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        h2 {
+            margin-bottom: 20px;
+            color: #4b2e2e;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            outline: none;
+            transition: 0.2s;
+        }
+
+        input:focus {
+            border-color: #a67c52;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #6f4e37;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            margin-top: 10px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        button:hover {
+            background-color: #5a3e2b;
+        }
+
+        .footer-text {
+            margin-top: 15px;
+            font-size: 12px;
+            color: #888;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="login-card">
+    <h2>☕ Cafe Login</h2>
+
+    <input id="username" placeholder="Username">
+    <input id="password" type="password" placeholder="Password">
+
+    <button onclick="login()">Login</button>
+
+    <div class="footer-text">
+        Cafe Management System
+    </div>
+</div>
+
+<script>
+async function login() {
+    const res = await fetch('/api/users/login/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            username: document.getElementById('username').value,
+            password: document.getElementById('password').value
+        })
+    });
+
+    const data = await res.json();
+
+    console.log(data); // 👈 debug
+
+    if (data.access) {
+        localStorage.setItem('token', data.access);
+        localStorage.setItem('role', data.user.role);
+
+        const role = data.user.role.toLowerCase();
+
+        if (role === 'admin') {
+            window.location.href = '/page/admin-page/';
+        } else {
+            window.location.href = '/page/dashboard-page/';
+        }
+    } else {
+        alert(data.error || "Invalid login");
+    }
+}
+</script>
+
+</body>
+</html>

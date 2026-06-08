@@ -1,0 +1,501 @@
+{% extends "base.html" %}
+
+{% block title %}Products{% endblock %}
+
+{% block head_extra %}
+<style>
+    .checkbox-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .catalog-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 20px;
+    }
+
+    .catalog-card {
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+        padding: 20px;
+        display: grid;
+        gap: 12px;
+    }
+
+    .catalog-media {
+        width: 100%;
+        height: 140px;
+        border-radius: 10px;
+        object-fit: cover;
+        background: linear-gradient(135deg, #e2e8f0, #f8fafc);
+    }
+
+    .catalog-title {
+        margin: 0;
+        font-size: 20px;
+        line-height: 1.3;
+    }
+
+    .catalog-meta {
+        display: grid;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 13px;
+    }
+
+    .catalog-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 6px;
+    }
+
+    .edit-modal {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+        z-index: 1200;
+    }
+
+    .edit-modal.active {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .edit-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.45);
+    }
+
+    .edit-sheet {
+        position: relative;
+        z-index: 1;
+        width: min(560px, 94vw);
+        display: grid;
+        gap: 14px;
+    }
+
+    .edit-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    .pagination-controls {
+        margin-top: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .page-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 9px 14px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--surface-muted);
+        color: var(--text);
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .page-link.disabled {
+        opacity: 0.45;
+        pointer-events: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="two-col">
+    <div class="card">
+        <h3>Create Product</h3>
+        {% if can_add_products %}
+            <form class="form" onsubmit="event.preventDefault(); createProduct();">
+                {% csrf_token %}
+                <input id="product_name" placeholder="Product name" required>
+                <select id="product_category_id">
+                    <option value="">Select category</option>
+                    {% for category in categories %}
+                        <option value="{{ category.id }}">{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+                <input id="product_category" placeholder="Create category if not listed">
+                <input id="product_code" placeholder="Product code (optional)">
+                <input id="product_brand" placeholder="Brand (optional)">
+                <textarea id="product_description" placeholder="Description"></textarea>
+                <input id="product_image" type="file" accept="image/*">
+                <input id="product_unit" placeholder="Unit">
+                <input id="product_price" type="number" step="0.01" min="0.01" placeholder="Price" value="0.01" required>
+                {% if locations %}
+                    <select id="product_location">
+                        <option value="">Select location (optional)</option>
+                        {% for location in locations %}
+                            <option value="{{ location.id }}">{{ location.name }}</option>
+                        {% endfor %}
+                    </select>
+                {% endif %}
+                <select id="product_discount_type">
+                    <option value="">Discount type</option>
+                    <option value="percentage">Percentage</option>
+                    <option value="flat">Flat</option>
+                </select>
+                <input id="product_discount_value" type="number" step="0.01" min="0" placeholder="Discount value">
+                <label class="checkbox-row">
+                    <input id="product_is_active" type="checkbox" checked>
+                    <span>Active product</span>
+                </label>
+                <label class="checkbox-row">
+                    <input id="product_is_serialized" type="checkbox">
+                    <span>Serialized product</span>
+                </label>
+                <label class="checkbox-row">
+                    <input id="product_is_perishable" type="checkbox">
+                    <span>Perishable product</span>
+                </label>
+                <button type="submit">Save Product</button>
+            </form>
+        {% else %}
+            <div class="muted">You do not have permission to create products from this page.</div>
+        {% endif %}
+        <div class="muted" id="product_result" style="margin-top: 8px;"></div>
+    </div>
+
+    <div class="card">
+        <h3>Catalog</h3>
+        <div class="muted" style="margin-bottom: 14px;">Showing products for {{ location_name }}.</div>
+
+        {% if products %}
+            <div class="catalog-grid" id="products_catalog_grid">
+                {% for product in products %}
+                    <article class="catalog-card" id="product-card-{{ product.id }}">
+                        {% if product.image %}
+                            <img class="catalog-media" src="{{ product.image.url }}" style="max-width:100%; max-height:100%; object-fit:contain;" alt="{{ product.name }}" onerror="this.src='/static/default.png';">
+                        {% else %}
+                            <img class="catalog-media" src="/static/default.png" alt="{{ product.name }}">
+                        {% endif %}
+                        <h4 class="catalog-title">{{ product.name }}</h4>
+                        <div class="catalog-meta">
+                            <div class="product-category">Category: {{ product.category_ref.name|default:product.category|default:"-" }}</div>
+                            <div class="product-price">Price: {{ product.price }}</div>
+                            <div class="product-location">Location: {{ product.location.name|default:"-" }}</div>
+                        </div>
+                        <div class="product-status-wrap">
+                            {% if product.is_active %}
+                                <span class="badge success product-status">Active</span>
+                            {% else %}
+                                <span class="badge product-status">Inactive</span>
+                            {% endif %}
+                        </div>
+                        {% if can_manage_products %}
+                            <div class="catalog-actions">
+                                <button
+                                    type="button"
+                                    class="btn-ghost"
+                                    onclick="openProductEditModal(this)"
+                                    data-id="{{ product.id }}"
+                                    data-name="{{ product.name|escapejs }}"
+                                    data-category-id="{{ product.category_ref_id|default:'' }}"
+                                    data-category="{{ product.category|escapejs }}"
+                                    data-price="{{ product.price }}"
+                                    data-unit="{{ product.unit|escapejs }}"
+                                    data-location-id="{{ product.location_id|default:'' }}"
+                                    data-is-active="{{ product.is_active|yesno:'true,false' }}"
+                                >
+                                    Edit
+                                </button>
+                                <button type="button" class="btn-danger" onclick="deleteProduct({{ product.id }})">Delete</button>
+                            </div>
+                        {% endif %}
+                    </article>
+                {% endfor %}
+            </div>
+            <div class="muted" id="products_empty_hint" style="display:none;">No products yet.</div>
+            {% if is_paginated %}
+                <div class="pagination-controls">
+                    {% if page_obj.has_previous %}
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                    {% else %}
+                        <span class="page-link disabled">Previous</span>
+                    {% endif %}
+                    <span class="muted">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                    {% if page_obj.has_next %}
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                    {% else %}
+                        <span class="page-link disabled">Next</span>
+                    {% endif %}
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="muted">No products yet.</div>
+        {% endif %}
+    </div>
+</section>
+
+<div id="product_edit_modal" class="edit-modal" aria-hidden="true">
+    <div class="edit-backdrop" onclick="closeProductEditModal()"></div>
+    <div class="card edit-sheet">
+        <h3 style="margin: 0;">Edit Product</h3>
+        <form class="form" onsubmit="event.preventDefault(); saveProductEdits();">
+            <input type="hidden" id="edit_product_id">
+            <input id="edit_product_name" placeholder="Product name" required>
+            <select id="edit_product_category_id">
+                <option value="">Select category</option>
+                {% for category in categories %}
+                    <option value="{{ category.id }}">{{ category.name }}</option>
+                {% endfor %}
+            </select>
+            <input id="edit_product_category" placeholder="Create category if not listed">
+            <input id="edit_product_price" type="number" step="0.01" min="0.01" placeholder="Price" required>
+            <input id="edit_product_unit" placeholder="Unit">
+            {% if locations %}
+                <select id="edit_product_location">
+                    <option value="">Select location</option>
+                    {% for location in locations %}
+                        <option value="{{ location.id }}">{{ location.name }}</option>
+                    {% endfor %}
+                </select>
+            {% endif %}
+            <label class="checkbox-row">
+                <input id="edit_product_is_active" type="checkbox">
+                <span>Active product</span>
+            </label>
+            <div class="edit-actions">
+                <button type="button" class="btn-ghost" onclick="closeProductEditModal()">Cancel</button>
+                <button type="submit">Save Changes</button>
+            </div>
+        </form>
+        <div class="muted" id="product_edit_result"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const csrfToken = window.CrudActions.getCookie("csrftoken");
+let editingProduct = null;
+
+function refreshEmptyProductsState() {
+    const grid = document.getElementById("products_catalog_grid");
+    const hint = document.getElementById("products_empty_hint");
+    if (!grid || !hint) {
+        return;
+    }
+    hint.style.display = grid.querySelector(".catalog-card") ? "none" : "block";
+}
+
+async function createProduct() {
+    const result = document.getElementById("product_result");
+    result.textContent = "";
+
+    const formData = new FormData();
+    formData.append("name", document.getElementById("product_name").value.trim());
+    formData.append("price", document.getElementById("product_price").value || "0.01");
+
+    const categoryId = document.getElementById("product_category_id").value;
+    const categoryName = document.getElementById("product_category").value.trim();
+    if (categoryId) {
+        formData.append("category_id", categoryId);
+    } else if (categoryName) {
+        formData.append("category", categoryName);
+    }
+
+    const optionalFields = [
+        ["code", "product_code"],
+        ["brand", "product_brand"],
+        ["description", "product_description"],
+        ["unit", "product_unit"],
+        ["discount_type", "product_discount_type"],
+        ["discount_value", "product_discount_value"],
+    ];
+    optionalFields.forEach(([apiField, domId]) => {
+        const value = (document.getElementById(domId)?.value || "").trim();
+        if (value) {
+            formData.append(apiField, value);
+        }
+    });
+
+    const locationValue = (document.getElementById("product_location")?.value || "").trim();
+    if (locationValue) {
+        formData.append("location_id", locationValue);
+    }
+
+    formData.append("is_active", document.getElementById("product_is_active").checked ? "true" : "false");
+    formData.append("is_serialized", document.getElementById("product_is_serialized").checked ? "true" : "false");
+    formData.append("is_perishable", document.getElementById("product_is_perishable").checked ? "true" : "false");
+
+    const imageFile = document.getElementById("product_image").files[0];
+    if (imageFile) {
+        formData.append("image", imageFile);
+    }
+
+    try {
+        const response = await fetch("/api/inventory/create-product/", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "X-CSRFToken": csrfToken },
+            body: formData,
+        });
+        const payload = await response.json();
+        const isCreateSuccess = response.status === 200 || response.status === 201;
+        if (isCreateSuccess) {
+            const message = "Product added successfully";
+            result.textContent = message;
+            window.CrudActions.showToast(message, "success");
+            setTimeout(() => window.location.reload(), 900);
+            return;
+        }
+        const errorMessage = window.CrudActions.extractErrorMessage(payload);
+        result.textContent = errorMessage;
+        window.CrudActions.showToast(errorMessage, "error");
+    } catch (_error) {
+        const message = "Request failed.";
+        result.textContent = message;
+        window.CrudActions.showToast(message, "error");
+    }
+}
+
+function openProductEditModal(button) {
+    editingProduct = {
+        id: Number(button.dataset.id),
+        button,
+    };
+    document.getElementById("edit_product_id").value = button.dataset.id;
+    document.getElementById("edit_product_name").value = button.dataset.name || "";
+    document.getElementById("edit_product_price").value = button.dataset.price || "";
+    document.getElementById("edit_product_unit").value = button.dataset.unit || "";
+    document.getElementById("edit_product_category_id").value = button.dataset.categoryId || "";
+    document.getElementById("edit_product_category").value = "";
+    const editLocation = document.getElementById("edit_product_location");
+    if (editLocation) {
+        editLocation.value = button.dataset.locationId || "";
+    }
+    document.getElementById("edit_product_is_active").checked = (button.dataset.isActive === "true");
+    document.getElementById("product_edit_result").textContent = "";
+    document.getElementById("product_edit_modal").classList.add("active");
+}
+
+function closeProductEditModal() {
+    document.getElementById("product_edit_modal").classList.remove("active");
+}
+
+async function saveProductEdits() {
+    const result = document.getElementById("product_edit_result");
+    result.textContent = "";
+    const productId = document.getElementById("edit_product_id").value;
+    const payload = {
+        name: document.getElementById("edit_product_name").value.trim(),
+        price: document.getElementById("edit_product_price").value,
+        unit: document.getElementById("edit_product_unit").value.trim(),
+        is_active: document.getElementById("edit_product_is_active").checked,
+    };
+    const categoryId = document.getElementById("edit_product_category_id").value;
+    const categoryName = document.getElementById("edit_product_category").value.trim();
+    if (categoryId) {
+        payload.category_id = categoryId;
+    } else if (categoryName) {
+        payload.category = categoryName;
+    }
+    const editLocation = document.getElementById("edit_product_location");
+    if (editLocation && editLocation.value) {
+        payload.location_id = editLocation.value;
+    }
+
+    await window.CrudActions.handleEdit({
+        item: editingProduct || { id: Number(productId) },
+        url: `/api/inventory/products/${productId}/`,
+        method: "PATCH",
+        data: payload,
+        onSuccess: (updatedProduct, item, sentData) => {
+            const id = Number(item?.id || productId);
+            const card = document.getElementById(`product-card-${id}`);
+            if (card) {
+                const nameNode = card.querySelector(".catalog-title");
+                const categoryNode = card.querySelector(".product-category");
+                const priceNode = card.querySelector(".product-price");
+                const locationNode = card.querySelector(".product-location");
+                const statusNode = card.querySelector(".product-status");
+
+                if (nameNode) {
+                    nameNode.textContent = updatedProduct?.name || sentData.name;
+                }
+                if (categoryNode) {
+                    const selectedCategory = document.querySelector(
+                        `#edit_product_category_id option[value="${sentData.category_id || ""}"]`
+                    );
+                    const categoryText = updatedProduct?.category
+                        || sentData.category
+                        || selectedCategory?.textContent
+                        || "Uncategorized";
+                    categoryNode.textContent = `Category: ${categoryText}`;
+                }
+                if (priceNode) {
+                    const priceText = Number(updatedProduct?.price ?? sentData.price ?? 0).toFixed(2);
+                    priceNode.textContent = `Price: ${priceText}`;
+                }
+                if (locationNode) {
+                    const locationSelect = document.getElementById("edit_product_location");
+                    const selectedLocation = locationSelect
+                        ? locationSelect.options[locationSelect.selectedIndex]?.textContent || "-"
+                        : "-";
+                    locationNode.textContent = `Location: ${selectedLocation}`;
+                }
+                if (statusNode) {
+                    const isActive = Boolean(updatedProduct?.is_active ?? sentData.is_active);
+                    statusNode.textContent = isActive ? "Active" : "Inactive";
+                    statusNode.classList.toggle("success", isActive);
+                }
+                const editButton = card.querySelector("button[onclick='openProductEditModal(this)']");
+                if (editButton) {
+                    editButton.dataset.name = updatedProduct?.name || sentData.name;
+                    editButton.dataset.category = updatedProduct?.category || sentData.category || "";
+                    editButton.dataset.categoryId = String(sentData.category_id || "");
+                    editButton.dataset.price = String(updatedProduct?.price ?? sentData.price ?? "");
+                    editButton.dataset.unit = updatedProduct?.unit || sentData.unit || "";
+                    editButton.dataset.locationId = String(sentData.location_id || "");
+                    editButton.dataset.isActive = String(updatedProduct?.is_active ?? sentData.is_active ?? true);
+                }
+            }
+            result.textContent = "Product updated.";
+            closeProductEditModal();
+        },
+        onError: (error) => {
+            result.textContent = error.message || "Request failed.";
+        },
+    });
+}
+
+async function deleteProduct(productId) {
+    const result = document.getElementById("product_result");
+    result.textContent = "";
+    await window.CrudActions.handleDelete({
+        id: productId,
+        url: `/api/inventory/products/${productId}/`,
+        confirmMessage: "Delete this product?",
+        onSuccess: (id) => {
+            const card = document.getElementById(`product-card-${id}`);
+            if (card) {
+                card.remove();
+            }
+            refreshEmptyProductsState();
+            result.textContent = "Product deleted.";
+        },
+        onError: (error) => {
+            result.textContent = error.message || "Request failed.";
+        },
+    });
+}
+</script>
+{% endblock %}

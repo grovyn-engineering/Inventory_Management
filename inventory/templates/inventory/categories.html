@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+
+{% block title %}Categories{% endblock %}
+
+{% block head_extra %}
+<style>
+    .checkbox-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .category-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 20px;
+    }
+
+    .category-card {
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+        padding: 18px;
+        display: grid;
+        gap: 12px;
+    }
+
+    .category-card-link {
+        display: block;
+    }
+
+    .category-media {
+    width: 100%;
+    height: 130px;
+    border-radius: 10px;
+    object-fit: contain;
+    background: #f8fafc;
+    }
+
+    .category-media.placeholder {
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .category-name {
+        margin: 0;
+        font-size: 18px;
+    }
+
+    .category-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .edit-modal {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+        z-index: 1200;
+    }
+
+    .edit-modal.active {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .edit-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.45);
+    }
+
+    .edit-sheet {
+        position: relative;
+        z-index: 1;
+        width: min(500px, 94vw);
+        display: grid;
+        gap: 14px;
+    }
+
+    .edit-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if can_manage_categories %}
+<div style="display:flex; justify-content:flex-end; margin-bottom:15px;">
+    <a href="/categories/create/">
+        <button type="button">+ Category</button>
+    </a>
+</div>
+{% endif %}
+
+<section>
+    <div class="card">
+        <h3>Category List</h3>
+
+        {% if categories %}
+            <div class="category-container" id="category_container">
+                {% for category in categories %}
+                    <article class="category-card" id="category-card-{{ category.id }}">
+                        <a href="{% url 'inventory_category_products' category.id %}" class="category-card-link">
+                            {% if category.image %}
+                                <img class="category-media" src="{{ category.image.url }}" alt="{{ category.name }}">
+                            {% else %}
+                                <img class="category-media" src="/static/default.png" alt="{{ category.name }}">
+                            {% endif %}
+                        </a>
+
+                        <h4 class="category-name">{{ category.name }}</h4>
+                        <div class="muted category-code">Code: {{ category.code }}</div>
+
+                        {% if can_manage_categories %}
+                            <div class="category-actions">
+                                <button
+                                    type="button"
+                                    class="btn-ghost"
+                                    onclick="openCategoryEditModal(this)"
+                                    data-id="{{ category.id }}"
+                                    data-name="{{ category.name|escapejs }}"
+                                    data-code="{{ category.code|escapejs }}"
+                                    data-description="{{ category.description|escapejs }}"
+                                    data-sort-order="{{ category.sort_order }}"
+                                    data-is-active="{{ category.is_active|yesno:'true,false' }}"
+                                >
+                                    Edit
+                                </button>
+                                <button type="button" class="btn-danger" onclick="deleteCategory({{ category.id }})">Delete</button>
+                            </div>
+                        {% endif %}
+                    </article>
+                {% endfor %}
+            </div>
+            <div class="muted" id="categories_empty_hint" style="display:none;">No categories yet.</div>
+        {% else %}
+            <div class="muted">No categories yet.</div>
+        {% endif %}
+    </div>
+</section>
+
+<div id="category_edit_modal" class="edit-modal" aria-hidden="true">
+    <div class="edit-backdrop" onclick="closeCategoryEditModal()"></div>
+    <div class="card edit-sheet">
+        <h3 style="margin: 0;">Edit Category</h3>
+        <form class="form" onsubmit="event.preventDefault(); saveCategoryEdits();">
+            <input type="hidden" id="edit_category_id">
+            <input id="edit_category_name" placeholder="Category name" required>
+            <input id="edit_category_code" placeholder="Category code (optional)">
+            <textarea id="edit_category_description" placeholder="Description"></textarea>
+            <input id="edit_category_sort_order" type="number" placeholder="Sort order" value="0">
+            <label class="checkbox-row">
+                <input id="edit_category_is_active" type="checkbox" checked>
+                <span>Active category</span>
+            </label>
+            <div class="edit-actions">
+                <button type="button" class="btn-ghost" onclick="closeCategoryEditModal()">Cancel</button>
+                <button type="submit">Save Changes</button>
+            </div>
+        </form>
+        <div class="muted" id="category_edit_result"></div>
+    </div>
+</div>
+
+<div class="muted" id="category_result" style="margin-top: 10px;"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let editingCategory = null;
+
+function refreshEmptyCategoriesState() {
+    const container = document.getElementById("category_container");
+    const hint = document.getElementById("categories_empty_hint");
+    if (!container || !hint) {
+        return;
+    }
+    hint.style.display = container.querySelector(".category-card") ? "none" : "block";
+}
+
+function openCategoryEditModal(button) {
+    editingCategory = {
+        id: Number(button.dataset.id),
+        button,
+    };
+    document.getElementById("edit_category_id").value = button.dataset.id;
+    document.getElementById("edit_category_name").value = button.dataset.name || "";
+    document.getElementById("edit_category_code").value = button.dataset.code || "";
+    document.getElementById("edit_category_description").value = button.dataset.description || "";
+    document.getElementById("edit_category_sort_order").value = button.dataset.sortOrder || "0";
+    document.getElementById("edit_category_is_active").checked = (button.dataset.isActive === "true");
+    document.getElementById("category_edit_result").textContent = "";
+    document.getElementById("category_edit_modal").classList.add("active");
+}
+
+function closeCategoryEditModal() {
+    document.getElementById("category_edit_modal").classList.remove("active");
+}
+
+async function saveCategoryEdits() {
+    const result = document.getElementById("category_edit_result");
+    result.textContent = "";
+
+    const categoryId = document.getElementById("edit_category_id").value;
+    const payload = {
+        name: document.getElementById("edit_category_name").value.trim(),
+        description: document.getElementById("edit_category_description").value.trim(),
+        sort_order: Number(document.getElementById("edit_category_sort_order").value || "0"),
+        is_active: document.getElementById("edit_category_is_active").checked,
+    };
+    const codeValue = document.getElementById("edit_category_code").value.trim();
+    if (codeValue) {
+        payload.code = codeValue;
+    }
+
+    await window.CrudActions.handleEdit({
+        item: editingCategory || { id: Number(categoryId) },
+        url: `/api/inventory/categories/${categoryId}/`,
+        method: "PATCH",
+        data: payload,
+        onSuccess: (updatedCategory, item, sentData) => {
+            const id = Number(item?.id || categoryId);
+            const card = document.getElementById(`category-card-${id}`);
+            if (card) {
+                const nameNode = card.querySelector(".category-name");
+                const codeNode = card.querySelector(".category-code");
+                if (nameNode) {
+                    nameNode.textContent = updatedCategory?.name || sentData.name;
+                }
+                if (codeNode) {
+                    const code = updatedCategory?.code || sentData.code || "";
+                    codeNode.textContent = `Code: ${code}`;
+                }
+                const editButton = card.querySelector("button[onclick='openCategoryEditModal(this)']");
+                if (editButton) {
+                    editButton.dataset.name = updatedCategory?.name || sentData.name;
+                    editButton.dataset.code = updatedCategory?.code || sentData.code || "";
+                    editButton.dataset.description = updatedCategory?.description || sentData.description || "";
+                    editButton.dataset.sortOrder = String(
+                        updatedCategory?.sort_order ?? sentData.sort_order ?? 0
+                    );
+                    editButton.dataset.isActive = String(
+                        updatedCategory?.is_active ?? sentData.is_active ?? true
+                    );
+                }
+            }
+            result.textContent = "Category updated.";
+            closeCategoryEditModal();
+        },
+        onError: (error) => {
+            result.textContent = error.message || "Request failed.";
+        },
+    });
+}
+
+async function deleteCategory(categoryId) {
+    const result = document.getElementById("category_result");
+    result.textContent = "";
+    await window.CrudActions.handleDelete({
+        id: categoryId,
+        url: `/api/inventory/categories/${categoryId}/`,
+        confirmMessage: "Delete this category?",
+        onSuccess: (id) => {
+            const card = document.getElementById(`category-card-${id}`);
+            if (card) {
+                card.remove();
+            }
+            refreshEmptyCategoriesState();
+            result.textContent = "Category deleted.";
+        },
+        onError: (error) => {
+            result.textContent = error.message || "Request failed.";
+        },
+    });
+}
+</script>
+{% endblock %}

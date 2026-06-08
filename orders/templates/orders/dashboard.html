@@ -1,0 +1,425 @@
+{% extends "base.html" %}
+
+{% block title %}Orders{% endblock %}
+
+{% block head_extra %}
+<style>
+    .order-status-table th:nth-child(1),
+    .order-status-table td:nth-child(1) {
+        width: 18%;
+    }
+
+    .order-status-table th:nth-child(2),
+    .order-status-table td:nth-child(2) {
+        width: 24%;
+    }
+
+    .order-status-table th:nth-child(3),
+    .order-status-table td:nth-child(3) {
+        width: 22%;
+    }
+
+    .order-status-table th:nth-child(4),
+    .order-status-table td:nth-child(4) {
+        width: 36%;
+    }
+
+    .order-status-table td {
+        vertical-align: middle;
+    }
+
+    .order-row-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .order-row-actions .btn-ghost,
+    .order-row-actions .btn-danger {
+        padding: 8px 12px;
+        border-radius: 10px;
+        font-size: 12px;
+        line-height: 1.1;
+    }
+
+    .order-card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 16px;
+    }
+
+    .order-item-card {
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+        padding: 16px;
+        display: grid;
+        gap: 8px;
+    }
+
+    .order-item-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: flex-start;
+    }
+
+    .order-item-title {
+        margin: 0;
+        font-size: 17px;
+    }
+
+    .order-item-meta {
+        display: grid;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 13px;
+    }
+
+    .edit-modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.35);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 40;
+        padding: 16px;
+    }
+
+    .edit-modal.open {
+        display: flex;
+    }
+
+    .edit-modal-card {
+        width: 100%;
+        max-width: 420px;
+    }
+
+    #dashboard-message {
+        margin-top: 12px;
+    }
+
+    .orders-stats-pagination {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 8px;
+        margin-top: 14px;
+    }
+
+    .orders-stats-pagination .page-label {
+        font-size: 13px;
+        color: var(--muted);
+        min-width: 72px;
+        text-align: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="content-grid">
+    <div class="card">
+        <h3>Total Orders</h3>
+        <div class="metric">{{ summary.total|default:0 }}</div>
+        <div class="muted">All statuses</div>
+    </div>
+    <div class="card">
+        <h3>Pending</h3>
+        <div class="metric">{{ summary.pending|default:0 }}</div>
+        <div class="muted">Awaiting completion</div>
+    </div>
+    <div class="card">
+        <h3>Completed</h3>
+        <div class="metric">{{ summary.completed|default:0 }}</div>
+        <div class="muted">Successfully processed</div>
+    </div>
+    <div class="card">
+        <h3>Revenue</h3>
+        <div class="metric">{{ summary.revenue|default:0 }}</div>
+        <div class="muted">From order totals</div>
+    </div>
+</section>
+
+<section class="two-col" style="margin-top: 24px;">
+    <div class="card">
+        <h3>Order Status</h3>
+        {% if orders %}
+            <table class="table order-status-table">
+                <thead>
+                    <tr>
+                        <th>Order</th>
+                        <th>Status</th>
+                        <th>Total</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in orders %}
+                        <tr id="order-row-{{ order.id }}">
+                            <td>#{{ order.id }}</td>
+                            <td id="order-status-{{ order.id }}">{{ order.status }}</td>
+                            <td id="order-total-{{ order.id }}">{{ order.total_amount|floatformat:2 }}</td>
+                            <td>
+                                <div class="order-row-actions">
+                                    <button
+                                        type="button"
+                                        class="btn-ghost"
+                                        data-edit-order="{{ order.id }}"
+                                    >
+                                        Edit
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="btn-danger"
+                                        data-delete-order="{{ order.id }}"
+                                    >
+                                        Delete
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="muted">No orders found.</div>
+        {% endif %}
+    </div>
+    <div class="card">
+        <h3>Orders Stats</h3>
+        {% if order_items %}
+            <div class="order-card-grid" id="orders-stats-grid">
+                {% for item in order_items %}
+                    <article class="order-item-card" data-order-stats-item>
+                        <div class="order-item-header">
+                            <h4 class="order-item-title">{{ item.product.name }}</h4>
+                            <span class="badge">{{ item.order.status|title }}</span>
+                        </div>
+                        <div class="order-item-meta">
+                            <div>Order: #{{ item.order.id }}</div>
+                            <div>Variant: {{ item.variant.name|default:"Base" }}</div>
+                            <div>Price: {{ item.price|floatformat:2 }}</div>
+                            <div>Quantity: {{ item.quantity }}</div>
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
+            <div class="orders-stats-pagination" id="orders-stats-pagination">
+                <button type="button" class="btn-ghost" id="orders-stats-prev">Previous</button>
+                <span class="page-label" id="orders-stats-page-label">Page 1 / 1</span>
+                <button type="button" class="btn-ghost" id="orders-stats-next">Next</button>
+            </div>
+        {% else %}
+            <div class="muted">No order items found.</div>
+        {% endif %}
+    </div>
+</section>
+
+<div class="edit-modal" id="edit-modal">
+    <div class="card edit-modal-card">
+        <h3 style="margin-top:0;">Edit Order</h3>
+        <div class="form">
+            <input type="hidden" id="edit-order-id">
+            <label for="edit-order-status">Status</label>
+            <select id="edit-order-status">
+                <option value="pending">Pending</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+            </select>
+            <label for="edit-order-payment">Payment Method</label>
+            <select id="edit-order-payment">
+                <option value="">Unspecified</option>
+                <option value="cash">Cash</option>
+                <option value="upi">UPI</option>
+                <option value="card">Card</option>
+                <option value="netbanking">Net Banking</option>
+                <option value="wallet">Wallet</option>
+            </select>
+            <label for="edit-order-total">Total Amount</label>
+            <input id="edit-order-total" type="number" min="0" step="0.01">
+        </div>
+        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+            <button type="button" class="btn-ghost" id="edit-cancel-btn">Cancel</button>
+            <button type="button" id="edit-save-btn">Save</button>
+        </div>
+        <div id="dashboard-message"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+    const orders = JSON.parse("{{ orders_payload|escapejs }}");
+    const ordersById = new Map(orders.map((order) => [Number(order.id), order]));
+    const editModal = document.getElementById("edit-modal");
+    const editOrderId = document.getElementById("edit-order-id");
+    const editStatus = document.getElementById("edit-order-status");
+    const editPayment = document.getElementById("edit-order-payment");
+    const editTotal = document.getElementById("edit-order-total");
+    const messageBox = document.getElementById("dashboard-message");
+    const ordersStatsItems = Array.from(document.querySelectorAll("[data-order-stats-item]"));
+    const ordersStatsPagination = document.getElementById("orders-stats-pagination");
+    const ordersStatsPrev = document.getElementById("orders-stats-prev");
+    const ordersStatsNext = document.getElementById("orders-stats-next");
+    const ordersStatsPageLabel = document.getElementById("orders-stats-page-label");
+    let editingOrder = null;
+    const ordersStatsPageSize = 10;
+    let ordersStatsCurrentPage = 1;
+
+    const renderOrdersStatsPage = () => {
+        if (!ordersStatsItems.length || !ordersStatsPagination || !ordersStatsPageLabel) {
+            return;
+        }
+        const totalPages = Math.max(1, Math.ceil(ordersStatsItems.length / ordersStatsPageSize));
+        if (ordersStatsCurrentPage > totalPages) {
+            ordersStatsCurrentPage = totalPages;
+        }
+
+        const start = (ordersStatsCurrentPage - 1) * ordersStatsPageSize;
+        const end = start + ordersStatsPageSize;
+
+        ordersStatsItems.forEach((item, index) => {
+            item.style.display = index >= start && index < end ? "" : "none";
+        });
+
+        ordersStatsPageLabel.textContent = `Page ${ordersStatsCurrentPage} / ${totalPages}`;
+        if (ordersStatsPrev) {
+            ordersStatsPrev.disabled = ordersStatsCurrentPage <= 1;
+        }
+        if (ordersStatsNext) {
+            ordersStatsNext.disabled = ordersStatsCurrentPage >= totalPages;
+        }
+        ordersStatsPagination.style.display = totalPages > 1 ? "flex" : "none";
+    };
+
+    const showMessage = (text, isError = false) => {
+        messageBox.innerHTML = "";
+        const notice = document.createElement("div");
+        notice.className = `notice ${isError ? "error" : ""}`;
+        notice.textContent = text;
+        messageBox.appendChild(notice);
+    };
+
+    const closeModal = () => {
+        editModal.classList.remove("open");
+        messageBox.innerHTML = "";
+    };
+
+    const openModal = (order) => {
+        editingOrder = order;
+        editOrderId.value = String(order.id);
+        editStatus.value = order.status || "pending";
+        editPayment.value = order.payment_method || "";
+        editTotal.value = Number(order.total_amount || 0).toFixed(2);
+        editModal.classList.add("open");
+    };
+
+    const removeOrderRow = (orderId) => {
+        const row = document.getElementById(`order-row-${orderId}`);
+        if (row) {
+            row.remove();
+        }
+    };
+
+    const applyOrderUpdateToRow = (order) => {
+        const statusNode = document.getElementById(`order-status-${order.id}`);
+        const totalNode = document.getElementById(`order-total-${order.id}`);
+        if (statusNode) {
+            statusNode.textContent = order.status;
+        }
+        if (totalNode) {
+            totalNode.textContent = Number(order.total_amount || 0).toFixed(2);
+        }
+    };
+
+    document.querySelectorAll("[data-delete-order]").forEach((button) => {
+        button.addEventListener("click", async () => {
+            const orderId = Number(button.getAttribute("data-delete-order"));
+            if (!orderId) {
+                return;
+            }
+            await window.CrudActions.handleDelete({
+                id: orderId,
+                url: `/api/orders/manage/${orderId}/`,
+                confirmMessage: `Delete Order #${orderId}?`,
+                onSuccess: (id) => {
+                    ordersById.delete(id);
+                    removeOrderRow(id);
+                },
+                onError: (error) => {
+                    window.alert(error.message || "Unable to delete order.");
+                },
+            });
+        });
+    });
+
+    document.querySelectorAll("[data-edit-order]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const orderId = Number(button.getAttribute("data-edit-order"));
+            const order = ordersById.get(orderId);
+            if (!order) {
+                return;
+            }
+            openModal(order);
+        });
+    });
+
+    document.getElementById("edit-cancel-btn").addEventListener("click", closeModal);
+
+    document.getElementById("edit-save-btn").addEventListener("click", async () => {
+        const orderId = Number(editOrderId.value);
+        if (!orderId) {
+            return;
+        }
+        const payload = {
+            status: editStatus.value,
+            payment_method: editPayment.value || null,
+            total_amount: Number(editTotal.value || 0),
+        };
+        await window.CrudActions.handleEdit({
+            item: editingOrder || { id: orderId },
+            url: `/api/orders/manage/${orderId}/`,
+            method: "PATCH",
+            data: payload,
+            onSuccess: (updated) => {
+                ordersById.set(orderId, updated);
+                applyOrderUpdateToRow(updated);
+                showMessage("Order updated successfully.");
+                setTimeout(closeModal, 500);
+            },
+            onError: (error) => {
+                showMessage(error.message || "Unable to update order.", true);
+            },
+        });
+    });
+
+    editModal.addEventListener("click", (event) => {
+        if (event.target === editModal) {
+            closeModal();
+        }
+    });
+
+    if (ordersStatsPrev && ordersStatsNext) {
+        ordersStatsPrev.addEventListener("click", () => {
+            if (ordersStatsCurrentPage > 1) {
+                ordersStatsCurrentPage -= 1;
+                renderOrdersStatsPage();
+            }
+        });
+
+        ordersStatsNext.addEventListener("click", () => {
+            const totalPages = Math.max(1, Math.ceil(ordersStatsItems.length / ordersStatsPageSize));
+            if (ordersStatsCurrentPage < totalPages) {
+                ordersStatsCurrentPage += 1;
+                renderOrdersStatsPage();
+            }
+        });
+    }
+
+    renderOrdersStatsPage();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Inventory</title>
+<style>
+body { font-family:'Segoe UI'; background:#f7f3ef; margin:0;}
+.nav { background:#6f4e37; color:white; padding:15px;}
+.container { max-width:800px; margin:40px auto;}
+table { width:100%; background:white; border-radius:12px; overflow:hidden;}
+th,td { padding:12px;}
+th { background:#6f4e37; color:white;}
+</style>
+</head>
+
+<body>
+<div class="nav">☕ Inventory</div>
+
+<div class="container">
+<table>
+<thead>
+<tr>
+<th>Product</th>
+<th>Location</th>
+<th>Quantity</th>
+</tr>
+</thead>
+<tbody id="table"></tbody>
+</table>
+</div>
+
+<script>
+const token = localStorage.getItem('token');
+
+async function loadInventory(){
+    const res = await fetch('/inventory/inventory-list/',{
+        headers:{'Authorization':'Bearer '+token}
+    });
+
+    const data = await res.json();
+    const table = document.getElementById('table');
+
+    table.innerHTML = '';
+
+    data.forEach(i=>{
+        table.innerHTML += `
+        <tr>
+            <td>${i.product__name}</td>
+            <td>${i.location__name}</td>
+            <td>${i.total_quantity}</td>
+        </tr>`;
+    });
+}
+
+window.onload = loadInventory;
+</script>
+</body>
+</html>

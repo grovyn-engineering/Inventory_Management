@@ -1,0 +1,450 @@
+{% extends "base.html" %}
+
+{% block title %}Orders{% endblock %}
+
+{% block head_extra %}
+<style>
+    #client-messages {
+        display: grid;
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+
+    .orders-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .location-picker {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .variant-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 14px;
+    }
+
+    .variant-card {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px;
+        background: var(--surface);
+        display: grid;
+        gap: 10px;
+    }
+
+    .image-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 220px;
+        overflow: hidden;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #e2e8f0, #f8fafc);
+    }
+
+    .product-image {
+        width: 100%;
+        height: 220px;
+        object-fit: cover;
+        display: block;
+    }
+
+    .product-image.placeholder {
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .variant-title {
+        margin: 0;
+        font-size: 16px;
+    }
+
+    .product-description {
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--muted);
+        min-height: 32px;
+    }
+
+    .variant-footer {
+        display: grid;
+        gap: 10px;
+    }
+
+    .variant-options {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .variant-option {
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-size: 12px;
+        cursor: pointer;
+        min-width: 42px;
+    }
+
+    .variant-option.selected {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: #fff;
+    }
+
+    .variant-selected-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .variant-price {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--accent);
+    }
+
+    .empty-state {
+        text-align: center;
+        color: var(--muted);
+        padding: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="client-messages"></div>
+
+<section class="card">
+    <div class="orders-header">
+        <div>
+            <h2 style="margin: 0;">Product Variants</h2>
+            <div class="muted" style="margin-top: 4px;">{{ location_name }}</div>
+        </div>
+        <div class="location-picker">
+            <label class="muted" for="location-select">Location</label>
+            <select id="location-select">
+                <option value="">Select Location</option>
+            </select>
+        </div>
+        <a href="{% url cart_page_url %}" id="go-to-cart-btn">
+            <button type="button">Go to Cart (0)</button>
+        </a>
+    </div>
+</section>
+
+<section class="card" style="margin-top: 14px;">
+    <div class="variant-grid" id="variant-grid"></div>
+    <div class="empty-state" id="filtered-empty-state" style="display:none;">
+        No variants available for selected location.
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+    let locations = [];
+    let selectedLocation = "";
+    let products = [];
+    let cart = [];
+    const selectedVariants = new Map();
+
+    const messageStack = document.getElementById("client-messages");
+    const cartButtonLabel = document.querySelector("#go-to-cart-btn button");
+    const locationSelect = document.getElementById("location-select");
+    const variantGrid = document.getElementById("variant-grid");
+    const filteredEmptyState = document.getElementById("filtered-empty-state");
+    const cartStorageKey = "orders_cart_v1";
+    const initialSelectedLocationId = "{{ selected_location_id|escapejs }}";
+    const isAdminUser = "{{ is_admin_user|yesno:'true,false' }}" === "true";
+
+    const showMessage = (message, type = "success") => {
+        const notice = document.createElement("div");
+        notice.className = `notice ${type === "error" ? "error" : ""}`;
+        notice.textContent = message;
+        messageStack.innerHTML = "";
+        messageStack.appendChild(notice);
+    };
+
+    const escapeHtml = (value) =>
+        String(value ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+
+    const normalizeVariantId = (value) => {
+        if (value === null || value === undefined || value === "" || value === "null") {
+            return null;
+        }
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const loadCart = () => {
+        try {
+            const stored = sessionStorage.getItem(cartStorageKey);
+            const parsed = stored ? JSON.parse(stored) : [];
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (_error) {
+            return [];
+        }
+    };
+
+    const saveCart = (items) => {
+        sessionStorage.setItem(cartStorageKey, JSON.stringify(items));
+    };
+
+    const updateCartButton = () => {
+        const count = loadCart().reduce((total, item) => total + Number(item.quantity || item.qty || 0), 0);
+        cartButtonLabel.textContent = `Go to Cart (${count})`;
+    };
+
+    const fetchLocations = async () => {
+        const response = await fetch("/locations", { credentials: "same-origin" });
+        const data = await response.json();
+        locations = Array.isArray(data) ? data : [];
+
+        locationSelect.innerHTML = [
+            '<option value="">Select Location</option>',
+            ...locations.map((location) => `<option value="${location.id}">${location.name}</option>`),
+        ].join("");
+
+        if (initialSelectedLocationId && locations.some((location) => String(location.id) === String(initialSelectedLocationId))) {
+            locationSelect.value = String(initialSelectedLocationId);
+        }
+
+        if (!locationSelect.value && !isAdminUser && locations.length === 1) {
+            locationSelect.value = String(locations[0].id);
+            locationSelect.disabled = true;
+        }
+
+        if (!locationSelect.value) {
+            selectedLocation = "";
+            setProducts([]);
+            renderProducts();
+            return;
+        }
+
+        selectedLocation = String(locationSelect.value || "");
+        await handleLocationChange({ target: { value: selectedLocation } }, false);
+    };
+
+    const buildCartItem = (product, variant) => ({
+        productId: product._id,
+        name: product.name,
+        variant: variant.name,
+        price: Number(variant.price || 0),
+        qty: 1,
+        variantId: variant.variantId,
+        image_url: variant.image_url || product.image_url || "",
+        location_id: variant.location_id || product.location_id || Number(selectedLocation || 0),
+    });
+
+    const renderProducts = () => {
+        if (!products.length) {
+            variantGrid.innerHTML = "";
+            filteredEmptyState.style.display = "block";
+            return;
+        }
+
+        filteredEmptyState.style.display = "none";
+        variantGrid.innerHTML = products.map((product) => `
+            <article class="variant-card">
+                <div class="image-container">
+                    ${product.active_image_url
+                        ? `<img class="product-image" src="${escapeHtml(product.active_image_url)}" alt="${escapeHtml(product.name)}">`
+                        : '<div class="product-image placeholder">No Image</div>'
+                    }
+                </div>
+                <div>
+                    <h3 class="variant-title">${escapeHtml(product.name)}</h3>
+                    <div class="product-description">${escapeHtml(product.description || "")}</div>
+                </div>
+                <div class="variant-footer">
+                    <div class="variant-options">
+                        ${product.variants.map((variant) => `
+                            <button
+                                type="button"
+                                class="variant-option ${normalizeVariantId(product.selected_variant_id) === normalizeVariantId(variant.variantId) ? "selected" : ""}"
+                                data-select-variant="1"
+                                data-product-id="${Number(product._id)}"
+                                data-variant-id="${variant.variantId === null ? "" : Number(variant.variantId)}"
+                            >
+                                ${escapeHtml(variant.name)}
+                            </button>
+                        `).join("")}
+                    </div>
+                    <div class="variant-selected-meta">
+                        <div>
+                            <div class="muted">Selected: ${escapeHtml(product.selected_variant_name)}</div>
+                            <div class="variant-price">&#8377;${Number(product.selected_variant_price || 0).toFixed(2)}</div>
+                        </div>
+                        <button type="button" data-add-selected-variant="1" data-product-id="${Number(product._id)}">
+                            Add to Cart
+                        </button>
+                    </div>
+                </div>
+            </article>
+        `).join("");
+
+        variantGrid.querySelectorAll("[data-select-variant]").forEach((button) => {
+            button.addEventListener("click", () => {
+                const productId = Number(button.getAttribute("data-product-id"));
+                const variantId = normalizeVariantId(button.getAttribute("data-variant-id"));
+                const product = products.find((entry) => Number(entry._id) === productId);
+                const variant = product?.variants?.find(
+                    (entry) => normalizeVariantId(entry.variantId) === normalizeVariantId(variantId)
+                );
+                if (!product || !variant) {
+                    return;
+                }
+                selectedVariants.set(productId, variantId);
+                setProducts(products);
+                renderProducts();
+            });
+        });
+
+        variantGrid.querySelectorAll("[data-add-selected-variant]").forEach((button) => {
+            button.addEventListener("click", () => {
+                const productId = Number(button.getAttribute("data-product-id"));
+                const product = products.find((entry) => Number(entry._id) === productId);
+                if (!product || !product.selected_variant) {
+                    return;
+                }
+                addToCart(buildCartItem(product, product.selected_variant));
+            });
+        });
+    };
+
+    const handleLocationChange = async (e, clearExistingCart = true) => {
+        const locationId = e.target.value;
+        const previousLocationId = String(selectedLocation || "");
+        setSelectedLocation(locationId);
+        if (clearExistingCart && previousLocationId !== String(locationId)) {
+            selectedVariants.clear();
+            sessionStorage.removeItem(cartStorageKey);
+            updateCartButton();
+        }
+        if (!locationId) {
+            setProducts([]);
+            renderProducts();
+            return;
+        }
+
+        const res = await fetch(`/products/${locationId}`, { credentials: "same-origin" });
+        const data = await res.json();
+        setProducts(Array.isArray(data) ? data : []);
+        renderProducts();
+    };
+
+    const setSelectedLocation = (value) => {
+        selectedLocation = String(value || "");
+    };
+
+    const setProducts = (items) => {
+        products = (Array.isArray(items) ? items : []).map((product) => {
+            const variants = Array.isArray(product.variants)
+                ? product.variants.map((variant) => ({
+                    ...variant,
+                    price: Number(variant.price || 0),
+                }))
+                : [];
+            const preferredVariantId = selectedVariants.get(Number(product._id));
+            const selectedVariant = variants.find(
+                (variant) => normalizeVariantId(variant.variantId) === normalizeVariantId(preferredVariantId)
+            )
+                || variants[0]
+                || null;
+
+            if (selectedVariant) {
+                selectedVariants.set(Number(product._id), normalizeVariantId(selectedVariant.variantId));
+            }
+
+            return {
+                ...product,
+                variants,
+                selected_variant: selectedVariant,
+                selected_variant_id: selectedVariant ? normalizeVariantId(selectedVariant.variantId) : null,
+                selected_variant_name: selectedVariant ? selectedVariant.name : "",
+                selected_variant_price: selectedVariant ? Number(selectedVariant.price || 0) : 0,
+                active_image_url: (selectedVariant && selectedVariant.image_url) || product.image_url || "",
+            };
+        });
+    };
+
+    const setCart = (updater) => {
+        const current = loadCart();
+        cart = typeof updater === "function" ? updater(current) : updater;
+        saveCart(cart);
+    };
+
+    const addToCart = (itemData) => {
+        const selectedLocationId = Number(selectedLocation || 0);
+        const itemLocationId = Number(itemData.location_id || itemData.locationId || selectedLocationId);
+        if (itemLocationId !== selectedLocationId) {
+            alert("Please select correct location");
+            return;
+        }
+
+        const item = {
+            productId: itemData.productId,
+            name: itemData.name,
+            variant: itemData.variant,
+            price: Number(itemData.price || 0),
+            qty: 1,
+        };
+
+        setCart((prev) => {
+            const working = Array.isArray(prev) ? [...prev] : [];
+            const existing = working.find((entry) => (
+                Number(entry.productId) === Number(item.productId)
+                && String(entry.variant) === String(item.variant)
+            ));
+            if (existing) {
+                existing.qty = Number(existing.qty || 0) + 1;
+                existing.quantity = Number(existing.quantity || 0) + 1;
+                return working;
+            }
+            working.push({
+                ...item,
+                product_id: item.productId,
+                product_name: item.name,
+                variant_name: item.variant,
+                quantity: 1,
+                variant_id: itemData.variantId || null,
+                image_url: itemData.image_url || "",
+                location_id: itemLocationId,
+            });
+            return working;
+        });
+
+        updateCartButton();
+        showMessage(`${item.name} - ${item.variant} added to cart.`);
+    };
+
+    locationSelect.addEventListener("change", (event) => handleLocationChange(event, true));
+    fetchLocations().catch(() => {
+        showMessage("Unable to load locations.", "error");
+    });
+    updateCartButton();
+})();
+</script>
+{% endblock %}

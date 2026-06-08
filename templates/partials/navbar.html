@@ -1,0 +1,34 @@
+<div class="topbar">
+    <div class="topbar-main">
+        <div>
+            <div class="eyebrow">Operations Console</div>
+            <h1>{{ page_title|default:"Dashboard" }}</h1>
+            {% if page_subtitle %}
+                <div class="muted">{{ page_subtitle }}</div>
+            {% endif %}
+        </div>
+        <div class="topbar-actions">
+            {% if request.user.is_authenticated %}
+                <div class="chip">{{ request.user.username }}</div>
+                <div class="chip">{{ request.user.normalized_role|title }}</div>
+                <form method="post" action="{% url 'logout' %}" style="margin: 0;">
+                    {% csrf_token %}
+                    <button class="btn-ghost" type="submit">Logout</button>
+                </form>
+            {% else %}
+                <div class="chip">Session Viewer</div>
+            {% endif %}
+        </div>
+    </div>
+    {% if request.user.is_authenticated and request.user.normalized_role == "manager" %}
+        <div class="section-nav" aria-label="Operations Console Navigation">
+            <a class="nav-link" href="{% url 'dashboard_manager' %}">Dashboard</a>
+            <a class="nav-link" href="{% url 'orders_page' %}">Orders</a>
+        </div>
+    {% elif request.user.is_authenticated and request.user.normalized_role == "worker" %}
+        <div class="section-nav" aria-label="Operations Console Navigation">
+            <a class="nav-link" href="{% url 'dashboard_worker' %}">Dashboard</a>
+            <a class="nav-link" href="{% url 'orders_page' %}">Orders</a>
+        </div>
+    {% endif %}
+</div>

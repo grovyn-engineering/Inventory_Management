@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block head_extra %}
+<style>
+    .recent-users-card {
+        overflow: hidden;
+    }
+
+    .recent-users-table-wrap {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    .recent-users-table-wrap .table {
+        margin-top: 8px;
+        table-layout: fixed;
+        min-width: 560px;
+    }
+
+    .recent-users-table-wrap .table td {
+        word-break: break-word;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="content-grid">
+    <div class="card">
+        <h3>Total Users</h3>
+        <div class="metric">{{ user_count }}</div>
+        <div class="muted">Active accounts</div>
+    </div>
+    <div class="card">
+        <h3>Locations</h3>
+        <div class="metric">{{ location_count }}</div>
+        <div class="muted">Assigned locations</div>
+    </div>
+    <div class="card">
+        <h3>Products</h3>
+        <div class="metric">{{ product_count }}</div>
+        <div class="muted">Catalog size</div>
+    </div>
+    <div class="card">
+        <h3>Role Mix</h3>
+        {% if role_summary %}
+            {% for role in role_summary %}
+                <div class="muted">{{ role.role }}: {{ role.total }}</div>
+            {% endfor %}
+        {% else %}
+            <div class="muted">No users yet.</div>
+        {% endif %}
+    </div>
+</section>
+
+<section class="two-col" style="margin-top: 24px;">
+    <div class="card">
+        <h3>Create User</h3>
+        <form class="form" onsubmit="event.preventDefault(); createUser();">
+            {% csrf_token %}
+            <input id="user_name" placeholder="Name" required>
+            <input id="user_email" type="email" placeholder="Email" required>
+            <input id="user_phone_number" placeholder="Phone Number" required>
+            <input id="user_password" type="password" placeholder="Password" required>
+            <input id="user_confirm_password" type="password" placeholder="Confirm Password" required>
+            <select id="user_role">
+                <option value="manager">Manager</option>
+                <option value="worker">Worker</option>
+            </select>
+            <select id="user_location">
+                <option value="">Select location</option>
+                {% for location in locations %}
+                    <option value="{{ location.id }}">{{ location.name }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit">Create User</button>
+        </form>
+        <div class="muted" id="user_result" style="margin-top: 8px;"></div>
+    </div>
+    <div class="card recent-users-card">
+        <h3>Recent Users</h3>
+        {% if users %}
+            <div class="recent-users-table-wrap">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Phone</th>
+                            <th>Role</th>
+                            <th>Location</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recent-users-body">
+                        {% for user in users %}
+                            <tr id="user-row-{{ user.id }}">
+                                <td>{{ user.first_name|default:user.username }}</td>
+                                <td>{{ user.phone_number|default:"-" }}</td>
+                                <td>{{ user.role }}</td>
+                                <td>{{ user.location.name|default:"-" }}</td>
+                                <td>
+                                    <button class="btn-danger" type="button" onclick="deleteUser({{ user.id }})">
+                                        Delete
+                                    </button>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="muted">No users found.</div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const csrfToken = window.CrudActions.getCookie("csrftoken");
+
+async function createUser() {
+    const result = document.getElementById("user_result");
+    result.textContent = "";
+
+    const payload = {
+        name: document.getElementById("user_name").value.trim(),
+        email: document.getElementById("user_email").value.trim(),
+        phone_number: document.getElementById("user_phone_number").value.trim(),
+        password: document.getElementById("user_password").value,
+        confirm_password: document.getElementById("user_confirm_password").value,
+        role: document.getElementById("user_role").value
+    };
+
+    const locationId = document.getElementById("user_location").value;
+    if (locationId) {
+        payload.location_id = locationId;
+    }
+
+    const res = await fetch("/api/users/create/", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfToken
+        },
+        body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    result.textContent = data.message || data.error || "Request completed.";
+    if (res.ok) {
+        window.location.reload();
+    }
+}
+
+async function deleteUser(userId) {
+    const result = document.getElementById("user_result");
+    result.textContent = "";
+    await window.CrudActions.handleDelete({
+        id: userId,
+        url: `/api/users/delete/${userId}/`,
+        confirmMessage: "Are you sure you want to delete this user?",
+        onSuccess: (id) => {
+            const row = document.getElementById(`user-row-${id}`);
+            if (row) {
+                row.remove();
+            }
+            const tbody = document.getElementById("recent-users-body");
+            if (tbody && !tbody.querySelector("tr")) {
+                tbody.innerHTML = '<tr><td colspan="5" class="muted">No users found.</td></tr>';
+            }
+            result.textContent = "User deleted successfully.";
+        },
+        onError: (error) => {
+            result.textContent = error.message || "Delete failed.";
+        },
+    });
+}
+</script>
+{% endblock %}

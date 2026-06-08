@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #f7f3ef;
+        }
+
+        .navbar {
+            background-color: #6f4e37;
+            color: white;
+            padding: 15px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .navbar h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+
+        .logout-btn {
+            background: #ffffff;
+            color: #6f4e37;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: #f1e7dc;
+        }
+
+        .container {
+            padding: 30px;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            transition: 0.3s;
+            cursor: pointer;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card h3 {
+            margin: 0;
+            color: #4b2e2e;
+        }
+
+        .card p {
+            margin-top: 10px;
+            color: #777;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="navbar">
+    <h2>☕ Cafe Dashboard</h2>
+    <button class="logout-btn" onclick="logout()">Logout</button>
+</div>
+
+<div class="container">
+
+    <div class="cards">
+        <div class="card">
+            <h3>Orders</h3>
+            <p>View and manage customer orders</p>
+        </div>
+
+        <div class="card">
+            <h3>Inventory</h3>
+            <p>Check stock and availability</p>
+        </div>
+
+        <div class="card">
+            <h3>Reports</h3>
+            <p>View sales and performance</p>
+        </div>
+
+        <div class="card">
+            <h3>Notifications</h3>
+            <p>Check alerts and updates</p>
+        </div>
+    </div>
+
+</div>
+
+<script>
+function logout() {
+    localStorage.clear();
+    window.location.href = '/page/login-page/';
+}
+</script>
+
+</body>
+</html>

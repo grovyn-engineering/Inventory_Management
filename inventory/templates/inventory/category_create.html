@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Create Category{% endblock %}
+
+{% block content %}
+<section>
+    <div class="card" style="max-width: 560px;">
+        <h3>Create Category</h3>
+        <form class="form" onsubmit="event.preventDefault(); createCategory();" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input id="category_name" placeholder="Category Name" required>
+            <input type="file" id="category_image" accept="image/*">
+            <button type="submit">Create Category</button>
+        </form>
+        <div class="muted" id="category_result" style="margin-top: 8px;"></div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function createCategory() {
+    const result = document.getElementById("category_result");
+    result.textContent = "";
+
+    const name = document.getElementById("category_name").value.trim();
+    const image = document.getElementById("category_image").files[0];
+
+    const formData = new FormData();
+    formData.append("name", name);
+    if (image) {
+        formData.append("image", image);
+    }
+
+    try {
+        const res = await fetch("/api/inventory/create-category/", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "X-CSRFToken": window.CrudActions.getCookie("csrftoken")
+            },
+            body: formData
+        });
+
+        const data = await res.json();
+        const isCreateSuccess = res.status === 200 || res.status === 201;
+        if (isCreateSuccess) {
+            const message = "Category added successfully";
+            result.textContent = message;
+            window.CrudActions.showToast(message, "success");
+            setTimeout(() => {
+                window.location.href = "/categories/";
+            }, 900);
+            return;
+        }
+        const errorMessage = window.CrudActions.extractErrorMessage(data);
+        result.textContent = errorMessage;
+        window.CrudActions.showToast(errorMessage, "error");
+    } catch (_error) {
+        const message = "Request failed.";
+        result.textContent = message;
+        window.CrudActions.showToast(message, "error");
+    }
+}
+</script>
+{% endblock %}

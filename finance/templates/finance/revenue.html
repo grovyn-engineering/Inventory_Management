@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Location Revenue{% endblock %}
+
+{% block content %}
+<section class="two-col">
+    <div class="card">
+        <h3>Revenue Lookup</h3>
+        <form class="form" onsubmit="event.preventDefault(); getRevenue();">
+            {% csrf_token %}
+            {% if is_admin %}
+                <input type="number" id="revenue_location_id" placeholder="Location ID" required>
+            {% else %}
+                <input type="number" id="revenue_location_id" value="{{ location.id }}" readonly>
+            {% endif %}
+            <button type="submit">Fetch Revenue</button>
+        </form>
+        <div class="muted" id="revenue_result" style="margin-top: 8px;"></div>
+    </div>
+    <div class="card">
+        <h3>Result</h3>
+        <div id="revenue_card" class="muted">{% if is_admin %}Enter a location id to view revenue.{% else %}Revenue is limited to {{ location.name }}.{% endif %}</div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) {
+        return parts.pop().split(";").shift();
+    }
+    return "";
+}
+
+const csrfToken = getCookie("csrftoken");
+
+async function getRevenue() {
+    const locationId = document.getElementById("revenue_location_id").value;
+    const result = document.getElementById("revenue_result");
+    const card = document.getElementById("revenue_card");
+    result.textContent = "";
+    card.textContent = "";
+
+    const res = await fetch(`/api/finance/revenue/${locationId}/`, {
+        credentials: "same-origin",
+        headers: {
+            "X-CSRFToken": csrfToken
+        }
+    });
+
+    const data = await res.json();
+    if (!res.ok || data.error) {
+        result.textContent = data.error || "Unable to fetch revenue.";
+        return;
+    }
+
+    const payload = data.data || {};
+    card.innerHTML = `
+        <div><strong>Location:</strong> ${payload.location || "-"}</div>
+        <div><strong>Today:</strong> ${payload.today_revenue || 0}</div>
+        <div><strong>Week:</strong> ${payload.weekly_revenue || 0}</div>
+        <div><strong>Month:</strong> ${payload.monthly_revenue || 0}</div>
+    `;
+}
+</script>
+{% endblock %}

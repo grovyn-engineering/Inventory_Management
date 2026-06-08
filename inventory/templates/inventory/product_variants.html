@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.name }} Variants{% endblock %}
+
+{% block head_extra %}
+<style>
+    .variant-page {
+        display: grid;
+        gap: 16px;
+    }
+
+    .variant-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 18px;
+    }
+
+    .variant-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        box-shadow: var(--shadow);
+        padding: 14px;
+        display: grid;
+        gap: 10px;
+    }
+
+    .image-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 160px;
+        overflow: hidden;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #e2e8f0, #f8fafc);
+    }
+
+    .product-image {
+        width: 100%;
+        height: 160px;
+        object-fit: contain;
+        display: block;
+    }
+
+    .product-image.placeholder {
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+
+    .variant-card h3 {
+        margin: 0;
+        font-size: 16px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="variant-page">
+    {% if variants %}
+        <section class="variant-grid">
+            {% for variant in variants %}
+                <article id="variant-{{ variant.id }}" class="variant-card">
+                    <div class="image-container">
+                        {% if variant.image %}
+                            <img class="product-image" src="{{ variant.image.url }}" alt="{{ variant.name }}">
+                        {% elif product.image %}
+                            <img class="product-image" src="{{ product.image.url }}" alt="{{ product.name }}">
+                        {% else %}
+                            <div class="product-image placeholder">No Variant Image</div>
+                        {% endif %}
+                    </div>
+                    <h3>{{ variant.name }}</h3>
+                    <div class="muted">Price: &#8377;{{ variant.price }}</div>
+                </article>
+            {% endfor %}
+        </section>
+    {% else %}
+        <article class="card">
+            <div class="muted">No variants configured for this product.</div>
+        </article>
+    {% endif %}
+</section>
+{% endblock %}

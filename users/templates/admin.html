@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard</title>
+
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #f7f3ef;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+
+        h2 {
+            text-align: center;
+            color: #4b2e2e;
+        }
+
+        .card {
+            background: #ffffff;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+
+        h3 {
+            margin-top: 0;
+            color: #6b4f4f;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            outline: none;
+            transition: 0.2s;
+        }
+
+        input:focus, select:focus {
+            border-color: #a67c52;
+        }
+
+        button {
+            background-color: #6f4e37;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        button:hover {
+            background-color: #5a3e2b;
+        }
+
+        .user-list li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin: 8px 0;
+            background: #f9f6f2;
+            border-radius: 8px;
+        }
+
+        .delete-btn {
+            background-color: #c0392b;
+        }
+
+        .delete-btn:hover {
+            background-color: #a93226;
+        }
+
+        .load-btn {
+            margin-bottom: 10px;
+            background-color: #8d6e63;
+        }
+
+        .load-btn:hover {
+            background-color: #6d4c41;
+        }
+
+        label {
+            font-size: 14px;
+            color: #555;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h2>☕ Admin Dashboard</h2>
+
+    <div class="card">
+        <h3>Create User</h3>
+
+        <label>Username</label>
+        <input id="username" placeholder="Enter username">
+
+        <label>Password</label>
+        <input id="password" placeholder="Enter password" type="password">
+
+        <label>Role</label>
+        <select id="role">
+            <option value="manager">Manager</option>
+            <option value="worker">Worker</option>
+        </select>
+
+        <label>Location</label>
+        <select id="location_id">
+            <option value="">Loading locations...</option>
+        </select>
+
+        <button onclick="createUser()">Create User</button>
+    </div>
+
+    <div class="card">
+        <h3>Users</h3>
+        <button class="load-btn" onclick="loadUsers()">Load Users</button>
+        <ul id="users" class="user-list"></ul>
+    </div>
+
+</div>
+
+<script>
+const token = localStorage.getItem('token');
+const role = localStorage.getItem('role');
+
+// ✅ Load locations from your new API
+async function loadLocations() {
+    try {
+        const res = await fetch('/inventory/locations/', {
+            headers: {
+                'Authorization': 'Bearer ' + token
+            }
+        });
+
+        const locations = await res.json();
+
+        const dropdown = document.getElementById('location_id');
+        dropdown.innerHTML = '<option value="">Select Location</option>';
+
+        locations.forEach(loc => {
+            const option = document.createElement('option');
+            option.value = loc.id;
+            option.textContent = loc.name;
+            dropdown.appendChild(option);
+        });
+
+    } catch (err) {
+        console.error("Error loading locations:", err);
+    }
+}
+
+// Create user
+async function createUser() {
+    const res = await fetch('/api/users/create/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+        },
+        body: JSON.stringify({
+            username: document.getElementById('username').value,
+            password: document.getElementById('password').value,
+            role: document.getElementById('role').value,
+            location_id: document.getElementById('location_id').value
+        })
+    });
+
+    const data = await res.json();
+    alert(data.message || data.error);
+}
+
+// Load users
+async function loadUsers() {
+    const res = await fetch('/api/users/list/', {
+        headers: {
+            'Authorization': 'Bearer ' + token
+        }
+    });
+
+    const users = await res.json();
+
+    const list = document.getElementById('users');
+    list.innerHTML = '';
+
+    users.forEach(u => {
+        const li = document.createElement('li');
+        li.id = `legacy-user-${u.id}`;
+        li.innerHTML = `
+            <span>${u.username} (${u.role})</span>
+            <button class="delete-btn" onclick="deleteUser(${u.id})">Delete</button>
+        `;
+        list.appendChild(li);
+    });
+}
+
+// Delete user
+async function deleteUser(id) {
+    if (!window.confirm("Are you sure you want to delete this user?")) {
+        return;
+    }
+    const response = await fetch(`/api/users/delete/${id}/`, {
+        method: 'DELETE',
+        headers: {
+            'Authorization': 'Bearer ' + token
+        }
+    });
+    if (!response.ok) {
+        alert("Delete failed.");
+        return;
+    }
+    const row = document.getElementById(`legacy-user-${id}`);
+    if (row) {
+        row.remove();
+    }
+}
+
+// ✅ Initialize page
+window.onload = function () {
+    if (role === 'admin') {
+        loadLocations();
+    } else {
+        document.getElementById('location_id').style.display = 'none';
+    }
+};
+</script>
+
+</body>
+</html>

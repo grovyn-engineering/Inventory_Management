@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Add Product</title>
+<style>
+body { font-family:'Segoe UI'; background:#f7f3ef; margin:0;}
+.nav { background:#6f4e37; color:white; padding:15px;}
+.container { max-width:600px; margin:40px auto;}
+.card { background:white; padding:20px; border-radius:12px; box-shadow:0 4px 10px rgba(0,0,0,0.08);}
+input,button { width:100%; padding:10px; margin:10px 0; border-radius:8px;}
+button { background:#6f4e37; color:white; border:none;}
+
+/* Added upload styles */
+.upload-box {
+    border: 2px dashed #aaa;
+    border-radius: 10px;
+    padding: 25px;
+    text-align: center;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.upload-box:hover {
+    border-color: #6f4e37;
+    background: #f9f9f9;
+}
+
+.upload-content p {
+    margin: 0;
+    font-weight: bold;
+}
+
+.upload-content span {
+    font-size: 12px;
+    color: gray;
+}
+
+#preview {
+    width: 100%;
+    margin-top: 10px;
+    border-radius: 10px;
+}
+    .upload-container {
+    margin-bottom: 20px;
+}
+
+.upload-box {
+    border: 2px dashed #aaa;
+    border-radius: 10px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    display: block;
+    width: 100%;
+}
+
+#preview {
+    width: 100%;
+    max-height: 200px;
+    object-fit: cover;
+    margin-top: 10px;
+    border-radius: 10px;
+}
+</style>
+</head>
+
+<body>
+<div class="nav">☕ Add Product</div>
+
+<div class="container">
+<div class="card">
+
+<!-- Upload first -->
+<div class="upload-container">
+    <input type="file" id="productImage" accept="image/*" hidden>
+
+    <label for="productImage" class="upload-box">
+        <div class="upload-content">
+            <p>📷 Upload Product Image</p>
+            <span>Click to choose image</span>
+        </div>
+    </label>
+
+    <img id="preview" src="" style="display:none;">
+</div>
+
+<!-- Then inputs -->
+<input id="name" placeholder="Product Name">
+<input id="price" placeholder="Price">
+
+<button onclick="createProduct()">Create Product</button>
+
+</div>
+</div>
+
+<script>
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) {
+        return parts.pop().split(';').shift();
+    }
+    return '';
+}
+
+async function createProduct(){
+    const formData = new FormData();
+    formData.append('name', document.getElementById('name').value);
+    formData.append('price', document.getElementById('price').value);
+    const imageInput = document.getElementById('productImage');
+    if (imageInput.files.length > 0) {
+        formData.append('image', imageInput.files[0]);
+    }
+
+    const res = await fetch('/api/inventory/create-product/',{
+        method:'POST',
+        credentials: 'same-origin',
+        headers:{
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: formData
+    });
+
+    const data = await res.json();
+    alert(data.message || data.error);
+}
+</script>
+
+<!-- Added preview script -->
+<script>
+const input = document.getElementById('productImage');
+const preview = document.getElementById('preview');
+
+input.addEventListener('change', function () {
+    const file = this.files[0];
+    if (file) {
+        preview.style.display = "block";
+        preview.src = URL.createObjectURL(file);
+    }
+});
+</script>
+
+</body>
+</html>

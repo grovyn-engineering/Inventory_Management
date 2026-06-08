@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+
+{% block title %}{{ category.name }} Products{% endblock %}
+
+{% block head_extra %}
+<style>
+    .filter-bar {
+        display: grid;
+        grid-template-columns: 2fr repeat(3, minmax(140px, 1fr));
+        gap: 12px;
+        margin-top: 14px;
+    }
+
+    .category-products-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 18px;
+    }
+
+    .category-product-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        display: grid;
+        grid-template-rows: 150px 1fr;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .category-product-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 18px 36px rgba(15, 23, 42, 0.16);
+    }
+
+    .category-product-image {
+        width: 100%;
+        height: 150px;
+        object-fit: cover;
+        background: linear-gradient(135deg, #e2e8f0, #f8fafc);
+    }
+
+    .category-product-image.placeholder {
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .category-product-body {
+        padding: 14px;
+        display: grid;
+        gap: 8px;
+    }
+
+    .category-product-name {
+        margin: 0;
+        font-size: 16px;
+        line-height: 1.35;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .category-product-price {
+        margin: 0;
+        color: var(--accent);
+        font-weight: 700;
+        font-size: 17px;
+    }
+
+    .view-link {
+        margin-top: 2px;
+        justify-self: start;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    #no_products_message {
+        display: none;
+    }
+
+    @media (max-width: 900px) {
+        .filter-bar {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="section-stack">
+    <div class="card">
+        <div class="section-heading">
+            <div>
+                <div class="eyebrow">Category</div>
+                <h2 style="margin: 6px 0 0;">{{ category.name }}</h2>
+            </div>
+            <div class="chip">{{ products|length }} products</div>
+        </div>
+
+        <div class="filter-bar">
+            <input id="product_search" type="text" placeholder="Search products by name">
+
+            <select id="price_filter">
+                <option value="">All Prices</option>
+                <option value="0-99">Under &#8377;100</option>
+                <option value="100-499">&#8377;100 - &#8377;499</option>
+                <option value="500-999">&#8377;500 - &#8377;999</option>
+                <option value="1000+">&#8377;1000+</option>
+            </select>
+
+            <select id="status_filter">
+                <option value="">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+            </select>
+
+            <select id="location_filter">
+                <option value="">All Locations</option>
+                {% for location in location_options %}
+                    <option value="{{ location.id }}">{{ location.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    {% if products %}
+        <div class="category-products-grid" id="category_products_grid">
+            {% for product in products %}
+                <article
+                    class="category-product-card"
+                    data-product-card
+                    onclick="window.location.href='{% url 'inventory_pages:product_variants' product.id %}'"
+                    style="cursor:pointer;"
+                    data-name="{{ product.name|lower }}"
+                    data-price="{{ product.price }}"
+                    data-status="{% if product.is_active %}active{% else %}inactive{% endif %}"
+                    data-location-id="{{ product.location_id|default:'' }}"
+                >
+                    {% if product.image %}
+                        <img class="category-product-image" src="{{ product.image.url }}" alt="{{ product.name }}">
+                    {% else %}
+                        <div class="category-product-image placeholder">No Image</div>
+                    {% endif %}
+
+                    <div class="category-product-body">
+                        <h4 class="category-product-name" title="{{ product.name }}">{{ product.name }}</h4>
+                        <p class="category-product-price">&#8377; {{ product.price }}</p>
+                        <div class="muted">Category: {{ product.category_ref.name|default:category.name }}</div>
+                        <div>
+                            {% if product.is_active %}
+                                <span class="badge">Active</span>
+                            {% else %}
+                                <span class="badge">Inactive</span>
+                            {% endif %}
+                        </div>
+                        <a class="btn-ghost view-link" href="{% url 'inventory_pages:product_variants' product.id %}">
+                            View Variants
+                        </a>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+        <div class="card muted" id="no_products_message">No products found.</div>
+    {% else %}
+        <div class="card muted">No products found in this category.</div>
+    {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const cards = Array.from(document.querySelectorAll("[data-product-card]"));
+const searchInput = document.getElementById("product_search");
+const priceFilter = document.getElementById("price_filter");
+const statusFilter = document.getElementById("status_filter");
+const locationFilter = document.getElementById("location_filter");
+const noProductsMessage = document.getElementById("no_products_message");
+
+function matchesPriceRange(rawPrice, selectedRange) {
+    const price = Number(rawPrice || 0);
+    if (!selectedRange) {
+        return true;
+    }
+    if (selectedRange === "0-99") {
+        return price < 100;
+    }
+    if (selectedRange === "100-499") {
+        return price >= 100 && price <= 499;
+    }
+    if (selectedRange === "500-999") {
+        return price >= 500 && price <= 999;
+    }
+    if (selectedRange === "1000+") {
+        return price >= 1000;
+    }
+    return true;
+}
+
+function applyFilters() {
+    const query = (searchInput?.value || "").trim().toLowerCase();
+    const selectedPrice = priceFilter?.value || "";
+    const selectedStatus = statusFilter?.value || "";
+    const selectedLocation = locationFilter?.value || "";
+    let visibleCount = 0;
+
+    cards.forEach((card) => {
+        const name = card.dataset.name || "";
+        const price = card.dataset.price || "";
+        const status = card.dataset.status || "";
+        const locationId = card.dataset.locationId || "";
+
+        const matchesSearch = !query || name.includes(query);
+        const matchesPrice = matchesPriceRange(price, selectedPrice);
+        const matchesStatus = !selectedStatus || status === selectedStatus;
+        const matchesLocation = !selectedLocation || locationId === selectedLocation;
+        const visible = matchesSearch && matchesPrice && matchesStatus && matchesLocation;
+
+        card.style.display = visible ? "grid" : "none";
+        if (visible) {
+            visibleCount += 1;
+        }
+    });
+
+    if (noProductsMessage) {
+        noProductsMessage.style.display = visibleCount ? "none" : "block";
+    }
+}
+
+searchInput?.addEventListener("input", applyFilters);
+priceFilter?.addEventListener("change", applyFilters);
+statusFilter?.addEventListener("change", applyFilters);
+locationFilter?.addEventListener("change", applyFilters);
+</script>
+{% endblock %}

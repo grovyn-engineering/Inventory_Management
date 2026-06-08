@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Revenue Dashboard</title>
+    <style>
+        body { font-family: Arial; background:#f0f2f5; }
+        .container {
+            max-width: 600px;
+            margin: 50px auto;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+        h2 { text-align:center; }
+        button {
+            padding: 10px;
+            width: 100%;
+            background: #6f4e37;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Location Revenue</h2>
+
+    <input type="number" id="location_id" placeholder="Enter Location ID">
+    <button onclick="getRevenue()">Get Revenue</button>
+
+    <div class="card" id="result" style="display:none;">
+        <h3 id="location"></h3>
+        <p>Today: ₹<span id="today"></span></p>
+        <p>Weekly: ₹<span id="week"></span></p>
+        <p>Monthly: ₹<span id="month"></span></p>
+    </div>
+</div>
+
+<script>
+    function getRevenue() {
+    const locationId = document.getElementById("location_id").value;
+
+    fetch(`/finance/revenue/${locationId}/`)
+    .then(res => res.json())
+    .then(data => {
+        console.log(data);
+
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+
+        document.getElementById("result").style.display = "block";
+        document.getElementById("location").innerText = data.location;
+        document.getElementById("today").innerText = data.today_revenue;
+        document.getElementById("week").innerText = data.weekly_revenue;
+        document.getElementById("month").innerText = data.monthly_revenue;
+    })
+    .catch(err => console.error(err));
+}
+</script>
+
+</body>
+</html>

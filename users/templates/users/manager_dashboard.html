@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Manager Dashboard{% endblock %}
+
+{% block content %}
+<section class="content-grid">
+    <div class="card">
+        <h3>Location</h3>
+        <div class="metric">{{ location_name }}</div>
+        <div class="muted">Assigned site</div>
+    </div>
+    <div class="card">
+        <h3>Total Orders</h3>
+        <div class="metric">{{ order_count }}</div>
+        <div class="muted">All-time orders</div>
+    </div>
+    <div class="card">
+        <h3>Pending Orders</h3>
+        <div class="metric">{{ pending_orders }}</div>
+        <div class="muted">Awaiting fulfillment</div>
+    </div>
+    <div class="card">
+        <h3>Completed Orders</h3>
+        <div class="metric">{{ completed_orders }}</div>
+        <div class="muted">Fulfilled</div>
+    </div>
+    <div class="card">
+        <h3>Stock Records</h3>
+        <div class="metric">{{ stock_count }}</div>
+        <div class="muted">Tracked items</div>
+    </div>
+</section>
+
+<section class="content-grid" style="margin-top: 24px;">
+    <a class="card" href="{% url 'inventory_pages:products' %}">
+        <h3>Products</h3>
+        <div class="muted">Review catalog products assigned to {{ location_name }}.</div>
+    </a>
+    <a class="card" href="{% url 'inventory_pages:stock' %}">
+        <h3>Manage Inventory</h3>
+        <div class="muted">Add stock and review inventory for {{ location_name }}.</div>
+    </a>
+    <a class="card" href="{% url 'orders_page' %}">
+        <h3>Orders</h3>
+        <div class="muted">Open the split-view ordering console for {{ location_name }}.</div>
+    </a>
+    <a class="card" href="{% url 'finance_pages:revenue' %}">
+        <h3>View Revenue</h3>
+        <div class="muted">Revenue lookup is restricted to your assigned location.</div>
+    </a>
+    <a class="card" href="{% url 'orders_pages:dashboard' %}">
+        <h3>View Orders</h3>
+        <div class="muted">See only orders placed for {{ location_name }}.</div>
+    </a>
+</section>
+
+<section class="two-col" style="margin-top: 24px;">
+    <div class="card">
+        <h3>Recent Orders</h3>
+        {% if recent_orders %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Order</th>
+                        <th>Status</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in recent_orders %}
+                        <tr>
+                            <td>#{{ order.id }}</td>
+                            <td>{{ order.status }}</td>
+                            <td>{{ order.total_amount }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="muted">No orders yet.</div>
+        {% endif %}
+    </div>
+    <div class="card">
+        <h3>Low Stock</h3>
+        {% if low_stock %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Qty</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stock in low_stock %}
+                        <tr>
+                            <td>{{ stock.product.name }}</td>
+                            <td><span class="badge warning">{{ stock.quantity }}</span></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="muted">No low stock alerts.</div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

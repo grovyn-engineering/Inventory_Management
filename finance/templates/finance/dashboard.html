@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Finance{% endblock %}
+
+{% block head_extra %}
+<style>
+    .finance-stack {
+        display: grid;
+        gap: 18px;
+        margin-top: 24px;
+    }
+
+    .finance-section-title {
+        margin: 0;
+        font-size: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="content-grid">
+    <div class="card">
+        <h3>Total Transactions</h3>
+        <div class="metric">{{ total_transactions }}</div>
+        <div class="muted">Recorded in ledger</div>
+    </div>
+    <div class="card">
+        <h3>Income</h3>
+        <div class="metric">{{ income_total }}</div>
+        <div class="muted">Credits received</div>
+    </div>
+    <div class="card">
+        <h3>Expense</h3>
+        <div class="metric">{{ expense_total }}</div>
+        <div class="muted">Outflows tracked</div>
+    </div>
+    <div class="card">
+        <h3>Net</h3>
+        <div class="metric">{{ net_total }}</div>
+        <div class="muted">Income minus expense</div>
+    </div>
+</section>
+
+<section class="finance-stack">
+    <div class="card">
+        <h3 class="finance-section-title">Transactions Section</h3>
+        <div class="muted" style="margin-top: 6px;">Ledger entries generated for finance activity.</div>
+        {% if recent_transactions %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Amount</th>
+                        <th>Location</th>
+                        <th>Method</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for txn in recent_transactions %}
+                        <tr>
+                            <td>{{ txn.transaction_type }}</td>
+                            <td>{{ txn.amount }}</td>
+                            <td>{{ txn.location.name }}</td>
+                            <td>{{ txn.payment_method }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="muted">No transactions recorded.</div>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h3 class="finance-section-title">Bills Section</h3>
+        <div class="muted" style="margin-top: 6px;">Payment bills generated per order settlement.</div>
+        {% if recent_bills %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Order</th>
+                        <th>Method</th>
+                        <th>Amount</th>
+                        <th>Txn Id</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for bill in recent_bills %}
+                        <tr>
+                            <td>#{{ bill.order.id }}</td>
+                            <td>{{ bill.payment_method }}</td>
+                            <td>{{ bill.amount_paid }}</td>
+                            <td>{{ bill.transaction_id|default:"-" }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="muted">No bills generated yet.</div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

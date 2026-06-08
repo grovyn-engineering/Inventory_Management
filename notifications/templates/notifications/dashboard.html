@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Notifications{% endblock %}
+
+{% block content %}
+<section class="content-grid">
+    <div class="card">
+        <h3>Total Alerts</h3>
+        <div class="metric">{{ total_alerts }}</div>
+        <div class="muted">All time alerts</div>
+    </div>
+    <div class="card">
+        <h3>Unread</h3>
+        <div class="metric">{{ unread_alerts }}</div>
+        <div class="muted">Require attention</div>
+    </div>
+    <div class="card">
+        <h3>Alert Types</h3>
+        <div class="muted">Stock update, low stock, zero stock, expiry, flagged</div>
+    </div>
+</section>
+
+<section style="margin-top: 24px;">
+    <div class="card">
+        <h3>Recent Alerts</h3>
+        {% if alerts %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Message</th>
+                        <th>User</th>
+                        <th>Location</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for alert in alerts %}
+                        <tr>
+                            <td>{{ alert.alert_type }}</td>
+                            <td>{{ alert.message }}</td>
+                            <td>{{ alert.user.username }}</td>
+                            <td>{{ alert.location.name|default:"-" }}</td>
+                            <td>
+                                {% if alert.is_read %}
+                                    <span class="badge">Read</span>
+                                {% else %}
+                                    <span class="badge warning">Unread</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="muted">No alerts generated yet.</div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Add Stock</title>
+<style>
+body { font-family:'Segoe UI'; background:#f7f3ef; margin:0;}
+.nav { background:#6f4e37; color:white; padding:15px;}
+.container { max-width:600px; margin:40px auto;}
+.card { background:white; padding:20px; border-radius:12px; box-shadow:0 4px 10px rgba(0,0,0,0.08);}
+input,select,button { width:100%; padding:10px; margin:10px 0; border-radius:8px;}
+button { background:#6f4e37; color:white; border:none;}
+</style>
+</head>
+
+<body>
+<div class="nav">☕ Add Stock</div>
+
+<div class="container">
+<div class="card">
+
+<input id="product_id" placeholder="Product ID">
+<input id="quantity" placeholder="Quantity">
+<input id="expiry_date" type="date">
+
+<select id="location_id">
+    <option value="">Select Location</option>
+</select>
+
+<button onclick="addStock()">Add Stock</button>
+
+</div>
+</div>
+
+<script>
+const token = localStorage.getItem('token');
+const role = localStorage.getItem('role');
+
+// Load locations (no restriction — backend handles)
+async function loadLocations(){
+    const res = await fetch('/inventory/locations/',{
+        headers:{'Authorization':'Bearer '+token}
+    });
+
+    const data = await res.json();
+    const dropdown = document.getElementById('location_id');
+
+    data.forEach(l=>{
+        const option = document.createElement('option');
+        option.value = l.id;
+        option.textContent = l.name;
+        dropdown.appendChild(option);
+    });
+}
+
+async function addStock(){
+
+    const payload = {
+        product_id: document.getElementById('product_id').value,
+        quantity: document.getElementById('quantity').value,
+        expiry_date: document.getElementById('expiry_date').value
+    };
+
+    // Only send location if present (backend decides)
+    if (document.getElementById('location_id').value) {
+        payload.location_id = document.getElementById('location_id').value;
+    }
+
+    const res = await fetch('/inventory/add-stock/',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+        body:JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    alert(data.message || data.error);
+}
+
+window.onload = loadLocations;
+</script>
+</body>
+</html>

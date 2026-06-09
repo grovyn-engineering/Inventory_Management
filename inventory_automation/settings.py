@@ -243,7 +243,8 @@ CLOUDINARY_STORAGE = {
 ALLOWED_HOSTS = [
     "127.0.0.1",
     "localhost",
-    "supermom-untying-imaginary.ngrok-free.dev"
+    "supermom-untying-imaginary.ngrok-free.dev",
+    "inventory-management-1-e8xs.onrender.com",
 ]
 
 LOW_STOCK_THRESHOLD = int(os.getenv("LOW_STOCK_THRESHOLD", "5"))

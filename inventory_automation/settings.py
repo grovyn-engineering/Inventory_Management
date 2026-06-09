@@ -97,12 +97,19 @@ WSGI_APPLICATION = 'inventory_automation.wsgi.application'
 #         'NAME': BASE_DIR / 'db.sqlite3',
 #     }
 # }
-DATABASES = {
-    'default': dj_database_url.parse(
-        os.environ.get("DATABASE_URL")
-    )
-}
+DATABASE_URL = os.getenv("DATABASE_URL")
 
+if DATABASE_URL:
+    DATABASES = {
+        "default": dj_database_url.parse(DATABASE_URL)
+    }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
@@ -245,12 +252,16 @@ CLOUDINARY_STORAGE = {
     'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
     'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
 }
+#
+# ALLOWED_HOSTS = [
+#     "127.0.0.1",
+#     "localhost",
+#     "supermom-untying-imaginary.ngrok-free.dev",
+#     "inventory-management-1-e8xs.onrender.com",
+# ]
 
 ALLOWED_HOSTS = [
-    "127.0.0.1",
-    "localhost",
-    "supermom-untying-imaginary.ngrok-free.dev",
-    "inventory-management-1-e8xs.onrender.com",
+    "*"
 ]
 
 LOW_STOCK_THRESHOLD = int(os.getenv("LOW_STOCK_THRESHOLD", "5"))
